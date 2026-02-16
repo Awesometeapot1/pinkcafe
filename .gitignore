@@ -1,0 +1,34 @@
+# --- Python / Virtualenv ---
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.pyd
+*.so
+*.egg-info/
+dist/
+build/
+
+# --- Streamlit ---
+.streamlit/secrets.toml
+.streamlit/*.log
+
+# --- Local data / outputs ---
+sales_entries.csv
+sales.db
+*.sqlite
+*.sqlite3
+prediction_next_4_weeks.csv
+
+# --- OS / Editor junk ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# --- Jupyter ---
+.ipynb_checkpoints/
+
+# --- Logs ---
+*.log
