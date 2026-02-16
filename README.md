@@ -1,4 +1,4 @@
-# Bristol Pink Café Dashboard (BLACKPINK Theme)
+# Bristol Pink Café Dashboard 
 
 A Streamlit dashboard for the Bristol Pink Café case study:
 - Upload café CSV sales files (coffee + croissant)
