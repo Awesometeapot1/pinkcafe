@@ -11,10 +11,9 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import Dict
 
 import numpy as np
 import pandas as pd
@@ -118,6 +117,59 @@ def render_pink_header(title: str, subtitle: str) -> None:
         unsafe_allow_html=True,
     )
     st.write("")
+
+
+# ----------------------------
+# Beginner-friendly chart helpers (NEW)
+# ----------------------------
+def add_time_features(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
+    df["date"] = pd.to_datetime(df["date"], errors="coerce")
+    df = df.dropna(subset=["date"])
+    df["day"] = df["date"].dt.date
+    df["week"] = df["date"].dt.to_period("W").astype(str)
+    df["month"] = df["date"].dt.to_period("M").astype(str)
+    df["weekday"] = df["date"].dt.day_name()
+    return df
+
+
+def moving_average(s: pd.Series, window: int = 7) -> pd.Series:
+    s = s.sort_index()
+    return s.rolling(window=window, min_periods=max(1, window // 2)).mean()
+
+
+def friendly_kpi_help(title: str, text: str) -> None:
+    st.markdown(
+        f"""
+        <div class="bp-card" style="padding:16px;">
+            <div class="bp-badge">{title}</div>
+            <div style="color:#ffb6d9; line-height:1.4;">{text}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.write("")
+
+
+def chart_section_title(title: str, subtitle: str) -> None:
+    st.markdown(f"## {title}")
+    st.caption(subtitle)
+    st.write("")
+
+
+def make_pred_band(pred: pd.Series, recent_actual: pd.Series) -> pd.DataFrame:
+    """
+    Friendly 'range' band using recent variability (NOT a statistical confidence interval).
+    """
+    recent = recent_actual.dropna().tail(21)
+    if len(recent) < 5:
+        spread = 0.0
+    else:
+        spread = float(recent.std())
+
+    lower = (pred - spread).clip(lower=0)
+    upper = (pred + spread).clip(lower=0)
+    return pd.DataFrame({"predicted": pred, "lower": lower, "upper": upper})
 
 
 # ----------------------------
@@ -458,13 +510,32 @@ def page_manager_sales_overview() -> None:
     c3.metric("Transactions", int(len(df)))
 
     st.write("")
-    st.subheader("📈 Revenue by day")
-    revenue_daily = df.groupby("day")["total"].sum()
-    st.line_chart(revenue_daily)
 
+    # Beginner-friendly revenue charts (NEW)
+    revenue_daily = df.groupby("day")["total"].sum().sort_index()
+    rev_ma7 = moving_average(revenue_daily, 7)
+
+    chart_section_title(
+        "📈 Revenue by day (easy view)",
+        "Bars = revenue each day • Line = 7-day average (smooth trend)",
+    )
+    st.bar_chart(pd.DataFrame({"Daily revenue": revenue_daily}))
+    st.line_chart(pd.DataFrame({"7-day average": rev_ma7}))
+
+    chart_section_title(
+        "📅 Weekly revenue (less noise)",
+        "Summarises performance week-by-week.",
+    )
+    weekly_rev = df.groupby(df["date"].dt.to_period("W"))["total"].sum()
+    weekly_rev.index = weekly_rev.index.astype(str)
+    st.bar_chart(weekly_rev)
+
+    st.write("")
     st.subheader("📦 Units by day")
-    units_daily = df.groupby("day")["qty"].sum()
-    st.line_chart(units_daily)
+    units_daily = df.groupby("day")["qty"].sum().sort_index()
+    units_ma7 = moving_average(units_daily, 7)
+    st.bar_chart(pd.DataFrame({"Daily units": units_daily}))
+    st.line_chart(pd.DataFrame({"7-day average": units_ma7}))
 
     st.subheader("🏆 Top products (revenue)")
     by_prod = df.groupby("product")["total"].sum().sort_values(ascending=False)
@@ -568,52 +639,108 @@ def page_predictions_dashboard() -> None:
 
     left, right = st.columns([3, 2])
 
-    daily_total = df_all.groupby("date")["units_sold"].sum()
+    daily_total = df_all.groupby("date")["units_sold"].sum().sort_index()
+    daily_ma7 = moving_average(daily_total, 7)
 
     with left:
-        st.subheader("📈 Total sales trend")
-        st.line_chart(daily_total)
+        chart_section_title(
+            "📈 Daily total sales (easy view)",
+            "Bars = sales each day • Line = 7-day average (smooth trend)",
+        )
 
-        st.write("")
-        st.subheader("📈 Sales trend by product")
+        daily_chart_df = pd.DataFrame({"Daily sales": daily_total, "7-day average": daily_ma7})
+        st.bar_chart(daily_chart_df[["Daily sales"]])
+        st.line_chart(daily_chart_df[["7-day average"]])
+
+        friendly_kpi_help(
+            "How to read this",
+            "If the bars go up and the 7-day average line rises, sales are increasing. "
+            "If the line falls, sales are decreasing. The line is there so you don’t overreact to one weird day.",
+        )
+
+        chart_section_title(
+            "🧁 Sales by product (top 5)",
+            "Shows the products with the most total sales in the period.",
+        )
         pivot = (
             df_all.pivot_table(index="date", columns="product", values="units_sold", aggfunc="sum")
             .fillna(0)
+            .sort_index()
         )
-        st.line_chart(pivot)
+        top_products = pivot.sum().sort_values(ascending=False).head(5).index.tolist()
+        if top_products:
+            st.line_chart(pivot[top_products])
+        else:
+            st.info("No product data to chart.")
+
+        st.caption("Tip: If one product line is flat/near zero most of the time, it may be overstock risk.")
 
     with right:
-        st.subheader("⚠️ Products that could generate a loss (low average sales)")
-        avg = df_all.groupby("product")["units_sold"].mean().sort_values()
-        threshold = float(avg.mean())
-        risky = avg[avg < threshold]
-        if len(risky) == 0:
-            st.write("None detected with current rule.")
-        else:
-            for p in risky.index.tolist():
-                st.write(f"• {p}")
+        chart_section_title(
+            "🗓️ Weekday pattern",
+            "Helps spot which days are naturally busier (useful for staffing & stock).",
+        )
+
+        weekday_order = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+        weekday_sales = (
+            df_all.copy()
+            .assign(weekday=df_all["date"].dt.day_name())
+            .groupby("weekday")["units_sold"]
+            .mean()
+            .reindex(weekday_order)
+            .fillna(0)
+        )
+        st.bar_chart(weekday_sales)
 
         st.write("")
-        st.subheader("📉 Recent period trend")
-        recent = daily_total.tail(max(14, len(daily_total) // 4))
-        st.line_chart(recent)
+        chart_section_title(
+            "⚠️ Low-average products (simple risk list)",
+            "Below-average daily sales compared to the overall mean (very basic rule).",
+        )
+        avg = df_all.groupby("product")["units_sold"].mean().sort_values()
+        threshold = float(avg.mean()) if len(avg) else 0.0
+        risky = avg[avg < threshold].head(8)
 
-        amount_to_sell = int(max(0, daily_total.tail(14).mean() * 7))
-        st.markdown(f"### Amount to sell: **{amount_to_sell:,}**")
+        if risky.empty:
+            st.success("No obvious low-average products using this simple rule.")
+        else:
+            st.dataframe(risky.rename("Average units/day").to_frame(), use_container_width=True)
+            friendly_kpi_help(
+                "What this means",
+                "These items sell less than the overall average. They’re candidates for smaller batches, "
+                "promotions, or reviewing whether they’re worth stocking as much.",
+            )
 
-    st.subheader("🔮 Prediction for next 4 weeks")
+        st.write("")
+        chart_section_title(
+            "✅ Simple weekly target suggestion",
+            "Based on your last 14 days average (not a guarantee).",
+        )
+        amount_to_sell = int(max(0, daily_total.tail(14).mean() * 7)) if len(daily_total) else 0
+        st.markdown(f"### Suggested weekly stock target: **{amount_to_sell:,} units**")
+
+    st.subheader("🔮 Prediction for next 4 weeks (easy view)")
+
     if mode == "AI":
-        pred_df = simple_forecast(daily_total, days=FORECAST_DAYS)
+        pred_raw = simple_forecast(daily_total, days=FORECAST_DAYS)
         model_info = {"ok": True, "type": "heuristic"}
     else:
-        pred_df, model_info = linear_regression_forecast(daily_total, days=FORECAST_DAYS)
+        pred_raw, model_info = linear_regression_forecast(daily_total, days=FORECAST_DAYS)
 
     last_date = daily_total.index.max()
     future_index = pd.date_range(last_date + pd.Timedelta(days=1), periods=FORECAST_DAYS, freq="D")
-    pred_df = pred_df.copy()
-    pred_df.index = future_index
 
-    st.line_chart(pred_df)
+    pred_series = pd.Series(pred_raw["predicted"].values, index=future_index)
+    band_df = make_pred_band(pred_series, daily_total)
+
+    st.caption("Line = predicted daily sales • Band = typical variation based on recent days (friendly range)")
+    st.line_chart(band_df[["predicted", "lower", "upper"]])
+
+    friendly_kpi_help(
+        "How to use this",
+        "Use the prediction as a planning guide, not a promise. If your real sales start tracking near the upper band, "
+        "you may need more stock. If they’re near the lower band, reduce waste risk.",
+    )
 
     with st.expander("🧠 Prediction details"):
         if mode == "AI":
@@ -630,7 +757,7 @@ def page_predictions_dashboard() -> None:
                 st.write(f"- R² (training fit): **{model_info['r2_train']:.3f}**")
                 st.caption("R² shown is on training data (simple baseline for coursework).")
 
-    out = pred_df.reset_index().rename(columns={"index": "date"})
+    out = band_df.reset_index().rename(columns={"index": "date"})
     csv_bytes = out.to_csv(index=False).encode("utf-8")
     st.download_button(
         "⬇️ Download 4-week prediction (CSV)",
@@ -686,5 +813,4 @@ else:
 if not PRICE_FILE.exists():
     st.warning("product_prices.csv was not found and a template should have been created. Please check your folder.")
 else:
-    # if template exists, encourage updating it
     pass
