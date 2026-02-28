@@ -1,4 +1,4 @@
-# Bristol Pink Café Dashboard (BLACKPINK Theme)
+# Bristol Pink Café Dashboard 
 
 A Streamlit dashboard for the Bristol Pink Café case study:
 - Upload café CSV sales files (coffee + croissant)
@@ -130,4 +130,4 @@ AI mode uses a rolling mean + light trend heuristic.
 Demo login is for coursework / prototype purposes; upgrade to hashed passwords + secrets for production-style security.
 
 
-If you want, paste your teacher’s **exact product + price list**, and I’ll also generate the correct `product_prices.csv` content to match it.
+
