@@ -45,7 +45,10 @@ FORECAST_DAYS = 28
 PRICE_FILE = Path("product_prices.csv")
 SALES_LOG = Path("sales_entries.csv")
 
-# Demo users (replace later with secrets/hashes if needed)
+# Stable schema for the sales log
+SALES_COLS = ["entry_id", "date", "product", "qty", "unit_price", "staff_user", "created_at"]
+
+# Demo users
 DEMO_USERS = {
     "manager": {"password": "manager123", "role": "manager"},
     "staff": {"password": "staff123", "role": "staff"},
@@ -195,19 +198,6 @@ def render_pink_header(title: str, subtitle: str) -> None:
     st.write("")
 
 
-def moving_average(s: pd.Series, window: int = 7) -> pd.Series:
-    s = s.sort_index()
-    return s.rolling(window=window, min_periods=max(1, window // 2)).mean()
-
-
-def make_pred_band(pred: pd.Series, recent_actual: pd.Series) -> pd.DataFrame:
-    recent = recent_actual.dropna().tail(21)
-    spread = float(recent.std()) if len(recent) >= 5 else 0.0
-    lower = (pred - spread).clip(lower=0)
-    upper = (pred + spread).clip(lower=0)
-    return pd.DataFrame({"predicted": pred, "lower": lower, "upper": upper})
-
-
 # ----------------------------
 # Auth (simple, demo)
 # ----------------------------
@@ -258,7 +248,7 @@ def logout_button() -> None:
 
 
 # ----------------------------
-# Price list + Sales log (CSV persistence)
+# Price list
 # ----------------------------
 def ensure_price_file_template() -> None:
     if PRICE_FILE.exists():
@@ -284,45 +274,142 @@ def load_price_map() -> Dict[str, float]:
     return price_map
 
 
+# ----------------------------
+# Sales log (robust write + auto-migrate/repair)
+# ----------------------------
+def _make_row_safe(row: dict) -> dict:
+    """Ensure row has every SALES_COLS key and correct basic types."""
+    r = {k: row.get(k) for k in SALES_COLS}
+    r["entry_id"] = str(r.get("entry_id") or uuid.uuid4())
+    r["date"] = str(r.get("date") or date.today())
+    r["product"] = str(r.get("product") or "").strip()
+    r["qty"] = int(pd.to_numeric(r.get("qty"), errors="coerce") or 0)
+    r["unit_price"] = float(pd.to_numeric(r.get("unit_price"), errors="coerce") or 0.0)
+    r["staff_user"] = str(r.get("staff_user") or "").strip().lower()
+    r["created_at"] = str(r.get("created_at") or datetime.now().isoformat(timespec="seconds"))
+    return r
+
+
 def save_sales_log(df: pd.DataFrame) -> None:
-    cols = ["entry_id", "date", "product", "qty", "unit_price", "staff_user", "created_at"]
     out = df.copy()
-    for c in cols:
+
+    # Ensure correct columns + order
+    for c in SALES_COLS:
         if c not in out.columns:
             out[c] = np.nan
-    out = out[cols]
+    out = out[SALES_COLS].copy()
+
     out.to_csv(SALES_LOG, index=False)
 
 
 def append_sale(row: dict) -> None:
-    row = dict(row)
-    row["entry_id"] = row.get("entry_id") or str(uuid.uuid4())
-    df = pd.DataFrame([row])
+    r = _make_row_safe(row)
+    df = pd.DataFrame([r], columns=SALES_COLS)
+
     if SALES_LOG.exists():
+        # Always append in the same column order, no header
         df.to_csv(SALES_LOG, mode="a", header=False, index=False)
     else:
         df.to_csv(SALES_LOG, index=False)
 
 
-def load_sales_log() -> pd.DataFrame:
-    storage_cols = ["entry_id", "date", "product", "qty", "unit_price", "staff_user", "created_at"]
-    if not SALES_LOG.exists():
-        return pd.DataFrame(columns=storage_cols + ["total"])
+def _try_read_sales_csv() -> pd.DataFrame:
+    """
+    Try to read sales_entries.csv in a few ways to handle older/broken files.
+    Returns a DataFrame (may have weird columns) or raises.
+    """
+    # Normal expected case (has headers)
+    try:
+        df = pd.read_csv(SALES_LOG)
+        return df
+    except Exception:
+        pass
 
-    df = pd.read_csv(SALES_LOG)
-    for c in storage_cols:
+    # If file has no header or is malformed, try header=None
+    df = pd.read_csv(SALES_LOG, header=None)
+    return df
+
+
+def migrate_or_repair_sales_log() -> None:
+    """
+    If an old version created sales_entries.csv with different columns/order,
+    normalize it into the current SALES_COLS schema.
+    """
+    if not SALES_LOG.exists():
+        return
+
+    df_raw = _try_read_sales_csv()
+
+    # Case A: Already has the right headers (or close enough)
+    if isinstance(df_raw.columns[0], str) and any(c in df_raw.columns for c in ["date", "product", "qty"]):
+        df = df_raw.copy()
+    else:
+        # Case B: No header / numeric columns. Attempt to map by column count.
+        df = df_raw.copy()
+        # If the old file had 6 columns: date,product,qty,unit_price,staff_user,created_at
+        if df.shape[1] >= 6:
+            df = df.iloc[:, :6].copy()
+            df.columns = ["date", "product", "qty", "unit_price", "staff_user", "created_at"]
+        else:
+            raise ValueError(
+                f"sales_entries.csv looks corrupted (only {df.shape[1]} columns). "
+                "Move it aside or delete it to start fresh."
+            )
+
+    # Normalize columns
+    for c in SALES_COLS:
         if c not in df.columns:
             df[c] = np.nan
 
+    # Clean types + fill missing ids
     df["entry_id"] = df["entry_id"].astype(object)
     mask = df["entry_id"].isna() | (df["entry_id"].astype(str).str.strip() == "")
     if mask.any():
         df.loc[mask, "entry_id"] = [str(uuid.uuid4()) for _ in range(int(mask.sum()))]
-        save_sales_log(df)
+
+    # Normalise user / product text
+    df["staff_user"] = df["staff_user"].astype(str).str.strip().str.lower()
+    df["product"] = df["product"].astype(str).str.strip()
+
+    # Parse date where possible, but keep original string if not
+    d = pd.to_datetime(df["date"], errors="coerce")
+    df.loc[d.notna(), "date"] = d.loc[d.notna()].dt.date.astype(str)
+
+    df["qty"] = pd.to_numeric(df["qty"], errors="coerce").fillna(0).astype(int)
+    df["unit_price"] = pd.to_numeric(df["unit_price"], errors="coerce").fillna(0.0).astype(float)
+    df["created_at"] = df["created_at"].astype(str).replace("nan", "").fillna("")
+
+    # Save back in clean schema order
+    save_sales_log(df[SALES_COLS].copy())
+
+
+def load_sales_log() -> pd.DataFrame:
+    """
+    Returns cleaned log with computed 'total' and parsed date as datetime.
+    """
+    if not SALES_LOG.exists():
+        return pd.DataFrame(columns=SALES_COLS + ["total"])
+
+    # Attempt repair/migration every run (cheap and fixes old files)
+    try:
+        migrate_or_repair_sales_log()
+    except Exception as e:
+        st.error(f"Sales log could not be repaired automatically: {e}")
+        st.stop()
+
+    df = pd.read_csv(SALES_LOG)
+
+    # Ensure schema
+    for c in SALES_COLS:
+        if c not in df.columns:
+            df[c] = np.nan
+    df = df[SALES_COLS].copy()
 
     df["date"] = pd.to_datetime(df["date"], errors="coerce")
     df["qty"] = pd.to_numeric(df["qty"], errors="coerce").fillna(0).astype(int)
-    df["unit_price"] = pd.to_numeric(df["unit_price"], errors="coerce").fillna(0.0)
+    df["unit_price"] = pd.to_numeric(df["unit_price"], errors="coerce").fillna(0.0).astype(float)
+    df["staff_user"] = df["staff_user"].astype(str).str.strip().str.lower()
+    df["product"] = df["product"].astype(str).str.strip()
     df["total"] = df["qty"] * df["unit_price"]
     return df
 
@@ -341,13 +428,6 @@ def parse_date_series(s: pd.Series) -> pd.Series:
 
 
 def load_coffee_weird_layout(uploaded_file) -> pd.DataFrame:
-    """
-    Handles Coffee CSV format:
-      Columns: Date, Number Sold, Unnamed: 2
-      Row 0: Date is NaN, other columns contain product names (e.g., Cappuccino, Americano)
-      Remaining rows: Date + numeric sales for each product
-    Returns long format: date, product, units_sold
-    """
     df = pd.read_csv(uploaded_file)
     df = normalize_cols(df)
 
@@ -382,10 +462,6 @@ def load_coffee_weird_layout(uploaded_file) -> pd.DataFrame:
 
 
 def load_simple_product_file(uploaded_file, product_name: str) -> pd.DataFrame:
-    """
-    Croissant CSV: Date, Number Sold
-    Returns long format: date, product, units_sold
-    """
     df = pd.read_csv(uploaded_file)
     df = normalize_cols(df)
 
@@ -450,8 +526,7 @@ def linear_regression_forecast(series: pd.Series, days: int = FORECAST_DAYS) -> 
     r2 = float(model.score(X, y))
 
     X_future = np.arange(len(s), len(s) + days).reshape(-1, 1)
-    y_future = model.predict(X_future)
-    y_future = np.clip(y_future, 0, None)
+    y_future = np.clip(model.predict(X_future), 0, None)
 
     pred_df = pd.DataFrame({"predicted": y_future})
     info = {
@@ -546,22 +621,18 @@ def random_forest_forecast(series: pd.Series, days: int = FORECAST_DAYS) -> Tupl
 # Pages
 # ----------------------------
 def page_staff_record_sale() -> None:
-    render_pink_header("Staff • Record Sales", "Enter sales. Product list is always visible (no dropdown).")
+    render_pink_header("Staff • Record Sales", "Enter sales. Recent entries should update immediately.")
 
     price_map = load_price_map()
     products = list(price_map.keys())
 
     st.info("Prices come from product_prices.csv. If you need to update prices, ask a manager.", icon=None)
 
-    with st.form("sale_form"):
+    with st.form("sale_form", clear_on_submit=True):
         d = st.date_input("Date", value=date.today())
-
-        # ✅ No dropdown: always visible options
         product = st.radio("Product", products, index=0)
-
         unit_price = float(price_map[product])
         st.text_input("Unit price", value=f"£{unit_price:.2f}", disabled=True)
-
         qty = st.number_input("Quantity sold", min_value=1, step=1, value=1)
         submitted = st.form_submit_button("Save")
 
@@ -581,15 +652,20 @@ def page_staff_record_sale() -> None:
 
     st.write("")
     st.subheader("Recent entries")
+
     df = load_sales_log()
-    mine = df[df["staff_user"] == st.session_state.username].copy()
+
+    # IMPORTANT: username stored lower-case in login_gate; match that
+    mine = df[df["staff_user"] == str(st.session_state.username).strip().lower()].copy()
+
     if mine.empty:
-        st.caption("No entries yet.")
+        st.caption("No entries yet (or your existing CSV is from an older schema and was just repaired).")
     else:
-        mine = mine.sort_values("created_at", ascending=False).head(20)
+        mine = mine.sort_values("created_at", ascending=False).head(25)
         show = mine[["date", "product", "qty", "unit_price", "total", "created_at"]].copy()
-        show["unit_price"] = show["unit_price"].map(lambda x: f"£{x:.2f}")
-        show["total"] = show["total"].map(lambda x: f"£{x:.2f}")
+        show["date"] = pd.to_datetime(show["date"], errors="coerce").dt.date.astype(str)
+        show["unit_price"] = show["unit_price"].map(lambda x: f"£{float(x):.2f}")
+        show["total"] = show["total"].map(lambda x: f"£{float(x):.2f}")
         st.dataframe(show, use_container_width=True)
 
 
@@ -612,14 +688,14 @@ def page_manager_sales_overview() -> None:
     st.write("")
     revenue_daily = df.groupby("day")["total"].sum().sort_index()
     st.bar_chart(pd.DataFrame({"Daily revenue": revenue_daily}))
-    st.line_chart(pd.DataFrame({"7-day average": moving_average(revenue_daily, 7)}))
+    st.line_chart(pd.DataFrame({"7-day average": revenue_daily.rolling(7, min_periods=1).mean()}))
 
     st.subheader("Top products by revenue")
     st.bar_chart(df.groupby("product")["total"].sum().sort_values(ascending=False))
 
 
 def page_manager_sales_records() -> None:
-    render_pink_header("Manager • Sales Records", "Filter, review, edit, and delete entries. Filters are visible lists.")
+    render_pink_header("Manager • Sales Records", "Filter, review, edit, and delete entries.")
 
     df = load_sales_log()
     if df.empty:
@@ -631,11 +707,9 @@ def page_manager_sales_records() -> None:
 
     with st.sidebar:
         st.markdown("### Filters (no dropdowns)")
-
         products = ["(All)"] + sorted(df["product"].dropna().unique().tolist())
         staff_users = ["(All)"] + sorted(df["staff_user"].dropna().unique().tolist())
 
-        # ✅ No dropdowns: always visible
         f_product = st.radio("Product", products, index=0)
         f_staff = st.radio("Staff user", staff_users, index=0)
 
@@ -651,8 +725,7 @@ def page_manager_sales_records() -> None:
     out = out[(out["day"] >= d_from) & (out["day"] <= d_to)]
 
     st.subheader("Edit entries")
-    editable_cols = ["entry_id", "date", "product", "qty", "unit_price", "staff_user", "created_at"]
-    view = out[editable_cols].copy()
+    view = out[SALES_COLS].copy()
     view["date"] = pd.to_datetime(view["date"], errors="coerce").dt.date
 
     edited = st.data_editor(
@@ -676,16 +749,18 @@ def page_manager_sales_records() -> None:
             st.stop()
 
         edited2["qty"] = pd.to_numeric(edited2["qty"], errors="coerce").fillna(0).astype(int)
-        edited2["unit_price"] = pd.to_numeric(edited2["unit_price"], errors="coerce").fillna(0.0)
+        edited2["unit_price"] = pd.to_numeric(edited2["unit_price"], errors="coerce").fillna(0.0).astype(float)
+        edited2["staff_user"] = edited2["staff_user"].astype(str).str.strip().str.lower()
+        edited2["product"] = edited2["product"].astype(str).str.strip()
 
-        master = df.drop(columns=["day"], errors="ignore").copy()
+        master = df.copy()
         master_index = master.set_index("entry_id")
         patch = edited2.set_index("entry_id")
 
         for col in ["date", "product", "qty", "unit_price", "staff_user"]:
             master_index.loc[patch.index, col] = patch[col]
 
-        save_sales_log(master_index.reset_index())
+        save_sales_log(master_index.reset_index()[SALES_COLS])
         st.success("Saved edits.")
         st.rerun()
 
@@ -707,9 +782,9 @@ def page_manager_sales_records() -> None:
 
         confirm = st.checkbox("I understand this cannot be undone.", key="confirm_delete")
         if st.button("Delete selected", disabled=(not to_delete or not confirm)):
-            master = df.drop(columns=["day"], errors="ignore").copy()
+            master = df.copy()
             master = master[~master["entry_id"].isin(to_delete)].copy()
-            save_sales_log(master)
+            save_sales_log(master[SALES_COLS])
             st.success(f"Deleted {len(to_delete)} entr{'y' if len(to_delete)==1 else 'ies'}.")
             st.rerun()
 
@@ -793,7 +868,6 @@ with st.sidebar:
     st.write(f"User: **{st.session_state.username}**")
     st.write(f"Role: **{st.session_state.role}**")
     logout_button()
-
     st.markdown("---")
 
     if st.session_state.role == "manager":
