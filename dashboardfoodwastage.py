@@ -1,11 +1,11 @@
 # dashboardfoodwastage.py
-# Bristol Pink Café – Streamlit Dashboard (with BLACKPINK login + Manager/Staff roles + Sales entry)
+# Bristol Pink Café – Streamlit Dashboard (BLACKPINK styling + Manager/Staff roles + Sales entry)
 #
 # What you need in the project folder:
 #   - dashboardfoodwastage.py  (this file)
 #   - product_prices.csv       (teacher-provided prices; auto-template created if missing)
 #
-# Your prediction dashboard still expects TWO CSV uploads:
+# Predictions page expects TWO CSV uploads:
 #   1) Coffee CSV: "Pink CoffeeSales March - Oct 2025.csv"  (weird first-row product names)
 #   2) Croissant CSV: "Pink CroissantSales March - Oct 2025.csv" (normal Date + Number Sold)
 
@@ -45,60 +45,201 @@ DEMO_USERS = {
 
 
 # ----------------------------
-# BLACKPINK Theme
+# BLACKPINK Theme (higher contrast + more professional)
 # ----------------------------
 def inject_blackpink_theme() -> None:
     st.markdown(
         """
         <style>
+        /* ---------- Blackpink Pro Palette ---------- */
+        :root{
+            --bp-bg: #06060A;
+            --bp-bg-2: #0A0A10;
+
+            --bp-surface: rgba(255,255,255,0.06);
+            --bp-surface-2: rgba(255,255,255,0.09);
+
+            --bp-border: rgba(255,105,180,0.22);
+            --bp-border-strong: rgba(255,105,180,0.40);
+
+            --bp-text: #F6F1F7;
+            --bp-text-dim: rgba(246,241,247,0.78);
+            --bp-text-mute: rgba(246,241,247,0.62);
+
+            --bp-pink: #ff69b4;
+            --bp-pink-2: #ff2d95;
+
+            --bp-shadow: 0 14px 44px rgba(0,0,0,0.62);
+            --bp-radius: 18px;
+            --bp-radius-sm: 12px;
+        }
+
+        /* ---------- App background + base type ---------- */
         .stApp {
-            background: radial-gradient(circle at top, #1a1a1a 0%, #000000 55%, #000000 100%);
-            color: #ffe6f2;
+            background:
+                radial-gradient(1000px 700px at 20% 0%, rgba(255,105,180,0.10) 0%, rgba(255,105,180,0.0) 62%),
+                radial-gradient(1000px 700px at 80% 0%, rgba(255,45,149,0.08) 0%, rgba(255,45,149,0.0) 62%),
+                linear-gradient(180deg, var(--bp-bg) 0%, #000 72%, #000 100%);
+            color: var(--bp-text);
         }
+
         html, body, [class*="css"]  {
-            color: #ffe6f2;
+            color: var(--bp-text);
+            font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
         }
-        section[data-testid="stSidebar"] {
-            background: #0b0b0b;
-            border-right: 1px solid rgba(255,105,180,0.35);
-        }
+
+        /* Layout spacing polish */
+        .block-container { padding-top: 1.1rem; padding-bottom: 2.6rem; }
+
+        /* ---------- Headings ---------- */
         h1, h2, h3, h4 {
-            color: #ff69b4 !important;
-            letter-spacing: 0.5px;
+            color: var(--bp-pink) !important;
+            letter-spacing: 0.2px;
         }
-        .stButton > button {
-            background: linear-gradient(90deg, #ff69b4 0%, #ff2d95 100%);
-            color: black;
-            border: none;
-            border-radius: 12px;
-            padding: 0.6rem 1rem;
-            font-weight: 800;
+        p, li, label, .stMarkdown, .stCaption {
+            color: var(--bp-text-dim) !important;
         }
-        .stButton > button:hover { filter: brightness(1.05); }
-        .stTextInput input, .stSelectbox div, .stNumberInput input, .stDateInput input {
-            border-radius: 12px !important;
+
+        /* ---------- Sidebar ---------- */
+        section[data-testid="stSidebar"]{
+            background: linear-gradient(180deg, var(--bp-bg-2) 0%, #050508 100%);
+            border-right: 1px solid var(--bp-border);
         }
+        section[data-testid="stSidebar"] *{
+            color: var(--bp-text) !important;
+        }
+        section[data-testid="stSidebar"] .stRadio label,
+        section[data-testid="stSidebar"] .stSelectbox label,
+        section[data-testid="stSidebar"] .stDateInput label {
+            color: var(--bp-text-dim) !important;
+        }
+
+        /* ---------- Cards / panels ---------- */
         .bp-card {
-            background: rgba(255,255,255,0.06);
-            border: 1px solid rgba(255,105,180,0.35);
-            border-radius: 18px;
+            background: linear-gradient(180deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.04) 100%);
+            border: 1px solid var(--bp-border);
+            border-radius: var(--bp-radius);
             padding: 22px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+            box-shadow: var(--bp-shadow);
+            backdrop-filter: blur(10px);
         }
+
+        /* Premium badge: less “bubble”, more “label” */
         .bp-badge {
             display: inline-block;
-            padding: 6px 10px;
+            padding: 6px 12px;
             border-radius: 999px;
-            border: 1px solid rgba(255,105,180,0.45);
-            color: #ffb6d9;
-            font-size: 12px;
+            border: 1px solid rgba(255,105,180,0.38);
+            background:
+                linear-gradient(180deg, rgba(255,105,180,0.14) 0%, rgba(0,0,0,0.10) 100%);
+            color: rgba(246,241,247,0.92);
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
             margin-bottom: 12px;
         }
+
         .bp-divider {
             height: 1px;
-            background: rgba(255,105,180,0.25);
+            background: rgba(255,105,180,0.18);
             margin: 14px 0;
         }
+
+        /* ---------- Buttons (covers st.button AND st.form_submit_button) ---------- */
+        .stButton > button,
+        button[kind="primary"],
+        button[kind="secondary"],
+        div[data-testid="stForm"] button {
+            background: linear-gradient(90deg, var(--bp-pink) 0%, var(--bp-pink-2) 100%) !important;
+            color: #0A0A0F !important;
+            border: 1px solid rgba(255,255,255,0.12) !important;
+            border-radius: 14px !important;
+            padding: 0.62rem 1.05rem !important;
+            font-weight: 900 !important;
+            letter-spacing: 0.2px !important;
+            box-shadow: 0 10px 26px rgba(255,45,149,0.14) !important;
+            transition: transform 120ms ease, filter 120ms ease !important;
+        }
+
+        .stButton > button:hover,
+        button[kind="primary"]:hover,
+        button[kind="secondary"]:hover,
+        div[data-testid="stForm"] button:hover {
+            filter: brightness(1.05) !important;
+            transform: translateY(-1px) !important;
+        }
+
+        .stButton > button:disabled,
+        button[kind="primary"]:disabled,
+        button[kind="secondary"]:disabled,
+        div[data-testid="stForm"] button:disabled {
+            opacity: 0.55 !important;
+            cursor: not-allowed !important;
+            transform: none !important;
+        }
+
+        /* ---------- Inputs: dark + readable + consistent ---------- */
+        .stTextInput input,
+        .stNumberInput input,
+        .stDateInput input,
+        .stTextArea textarea,
+        div[data-baseweb="select"] > div {
+            background: rgba(10,10,15,0.72) !important;
+            color: var(--bp-text) !important;
+            border: 1px solid rgba(255,255,255,0.10) !important;
+            border-radius: var(--bp-radius-sm) !important;
+        }
+
+        .stTextInput input::placeholder,
+        .stTextArea textarea::placeholder {
+            color: rgba(246,241,247,0.44) !important;
+        }
+
+        .stTextInput input:focus,
+        .stNumberInput input:focus,
+        .stDateInput input:focus,
+        .stTextArea textarea:focus,
+        div[data-baseweb="select"] > div:focus-within {
+            outline: none !important;
+            border: 1px solid var(--bp-border-strong) !important;
+            box-shadow: 0 0 0 3px rgba(255,105,180,0.16) !important;
+        }
+
+        /* ---------- Radio / Checkbox ---------- */
+        div[role="radiogroup"] label, .stCheckbox label{
+            color: var(--bp-text-dim) !important;
+        }
+
+        /* ---------- Alerts ---------- */
+        div[data-testid="stAlert"]{
+            border-radius: var(--bp-radius);
+            border: 1px solid rgba(255,255,255,0.10);
+            background: rgba(10,10,15,0.65);
+            color: var(--bp-text) !important;
+        }
+
+        /* ---------- Dataframes / tables (best-effort across Streamlit builds) ---------- */
+        .stDataFrame, div[data-testid="stDataFrame"] {
+            border-radius: var(--bp-radius);
+            border: 1px solid rgba(255,255,255,0.10);
+            overflow: hidden;
+        }
+        div[data-testid="stDataFrame"] * {
+            color: var(--bp-text) !important;
+        }
+        div[data-testid="stDataFrame"] thead tr th {
+            background: rgba(255,105,180,0.10) !important;
+            border-bottom: 1px solid var(--bp-border) !important;
+        }
+        div[data-testid="stDataFrame"] tbody tr:hover td{
+            background: rgba(255,105,180,0.06) !important;
+        }
+
+        /* ---------- Links ---------- */
+        a, a:visited { color: rgba(255,182,217,0.95) !important; }
+        a:hover { color: var(--bp-pink) !important; }
+
         </style>
         """,
         unsafe_allow_html=True,
@@ -110,8 +251,8 @@ def render_pink_header(title: str, subtitle: str) -> None:
         f"""
         <div class="bp-card">
             <div class="bp-badge">BLACKPINK • Bristol Pink Café</div>
-            <h1 style="margin:0;">{title}</h1>
-            <p style="margin:6px 0 0 0; color:#ffb6d9;">{subtitle}</p>
+            <h1 style="margin:0; line-height:1.1;">{title}</h1>
+            <p style="margin:8px 0 0 0; color: rgba(246,241,247,0.72);">{subtitle}</p>
         </div>
         """,
         unsafe_allow_html=True,
@@ -120,7 +261,7 @@ def render_pink_header(title: str, subtitle: str) -> None:
 
 
 # ----------------------------
-# Beginner-friendly chart helpers (NEW)
+# Chart helpers
 # ----------------------------
 def add_time_features(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
@@ -141,9 +282,9 @@ def moving_average(s: pd.Series, window: int = 7) -> pd.Series:
 def friendly_kpi_help(title: str, text: str) -> None:
     st.markdown(
         f"""
-        <div class="bp-card" style="padding:16px;">
+        <div class="bp-card" style="padding:16px; background: linear-gradient(180deg, rgba(255,105,180,0.10) 0%, rgba(255,255,255,0.05) 100%);">
             <div class="bp-badge">{title}</div>
-            <div style="color:#ffb6d9; line-height:1.4;">{text}</div>
+            <div style="color: rgba(246,241,247,0.78); line-height:1.5;">{text}</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -194,7 +335,7 @@ def login_gate() -> bool:
     with mid:
         st.markdown('<div class="bp-card">', unsafe_allow_html=True)
         st.markdown('<div class="bp-badge">BLACKPINK • Café Portal</div>', unsafe_allow_html=True)
-        st.markdown("## 🔐 Login")
+        st.markdown("## Login")
 
         with st.form("bp_login_form", clear_on_submit=False):
             username = st.text_input("Username", placeholder="manager or staff")
@@ -208,7 +349,7 @@ def login_gate() -> bool:
                 st.session_state.logged_in = True
                 st.session_state.username = u
                 st.session_state.role = user["role"]
-                st.success(f"Welcome, {st.session_state.role.title()} ✨")
+                st.success(f"Welcome, {st.session_state.role.title()}.")
                 st.rerun()
             else:
                 st.error("Invalid username or password.")
@@ -285,7 +426,7 @@ def load_sales_log() -> pd.DataFrame:
 
 
 # ----------------------------
-# Original helpers (CSV loaders + forecasting)
+# CSV loaders + forecasting
 # ----------------------------
 def normalize_cols(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
@@ -447,14 +588,14 @@ def linear_regression_forecast(series: pd.Series, days: int = FORECAST_DAYS):
 # Pages
 # ----------------------------
 def page_staff_record_sale() -> None:
-    render_pink_header("Staff • Record Sales", "Enter daily sales. Unit price is fixed from teacher price list.")
+    render_pink_header("Staff • Record Sales", "Enter sales. Unit price is fixed from the price list.")
 
     price_map = load_price_map()
     products = list(price_map.keys())
 
     st.info(
-        "Prices come from product_prices.csv (teacher list). If you need to update prices, ask a manager to edit the CSV.",
-        icon="💗",
+        "Prices come from product_prices.csv. If you need to update prices, ask a manager to edit the CSV.",
+        icon=None,
     )
 
     with st.form("sale_form"):
@@ -465,7 +606,7 @@ def page_staff_record_sale() -> None:
         st.text_input("Unit price", value=f"£{unit_price:.2f}", disabled=True)
         qty = st.number_input("Quantity sold", min_value=1, step=1, value=1)
 
-        submitted = st.form_submit_button("Save sale")
+        submitted = st.form_submit_button("Save")
 
     if submitted:
         row = {
@@ -477,10 +618,10 @@ def page_staff_record_sale() -> None:
             "created_at": datetime.now().isoformat(timespec="seconds"),
         }
         append_sale(row)
-        st.success("Saved!")
+        st.success("Saved.")
 
     st.write("")
-    st.subheader("🧾 Your recent entries")
+    st.subheader("Recent entries")
     df = load_sales_log()
     mine = df[df["staff_user"] == st.session_state.username].copy()
     if mine.empty:
@@ -511,33 +652,32 @@ def page_manager_sales_overview() -> None:
 
     st.write("")
 
-    # Beginner-friendly revenue charts (NEW)
     revenue_daily = df.groupby("day")["total"].sum().sort_index()
     rev_ma7 = moving_average(revenue_daily, 7)
 
     chart_section_title(
-        "📈 Revenue by day (easy view)",
-        "Bars = revenue each day • Line = 7-day average (smooth trend)",
+        "Revenue by day",
+        "Bars show revenue per day. The line shows the 7-day average.",
     )
     st.bar_chart(pd.DataFrame({"Daily revenue": revenue_daily}))
     st.line_chart(pd.DataFrame({"7-day average": rev_ma7}))
 
     chart_section_title(
-        "📅 Weekly revenue (less noise)",
-        "Summarises performance week-by-week.",
+        "Weekly revenue",
+        "Total revenue grouped by week.",
     )
     weekly_rev = df.groupby(df["date"].dt.to_period("W"))["total"].sum()
     weekly_rev.index = weekly_rev.index.astype(str)
     st.bar_chart(weekly_rev)
 
     st.write("")
-    st.subheader("📦 Units by day")
+    st.subheader("Units by day")
     units_daily = df.groupby("day")["qty"].sum().sort_index()
     units_ma7 = moving_average(units_daily, 7)
     st.bar_chart(pd.DataFrame({"Daily units": units_daily}))
     st.line_chart(pd.DataFrame({"7-day average": units_ma7}))
 
-    st.subheader("🏆 Top products (revenue)")
+    st.subheader("Top products by revenue")
     by_prod = df.groupby("product")["total"].sum().sort_values(ascending=False)
     st.bar_chart(by_prod)
 
@@ -582,7 +722,7 @@ def page_manager_sales_records() -> None:
     st.write("")
     csv_bytes = out.drop(columns=["day"], errors="ignore").to_csv(index=False).encode("utf-8")
     st.download_button(
-        "⬇️ Download filtered sales (CSV)",
+        "Download filtered sales (CSV)",
         data=csv_bytes,
         file_name="sales_filtered.csv",
         mime="text/csv",
@@ -590,17 +730,17 @@ def page_manager_sales_records() -> None:
 
 
 def page_predictions_dashboard() -> None:
-    render_pink_header("Prediction Dashboard", "Upload café CSVs to view trends and predict the next 4 weeks.")
+    render_pink_header("Predictions", "Upload café CSVs to view trends and generate a 4-week forecast.")
 
     st.markdown("### Upload files")
     coffee_file = st.file_uploader("Coffee Sales CSV", type=["csv"], key="coffee_upload")
     croissant_file = st.file_uploader("Croissant Sales CSV", type=["csv"], key="croissant_upload")
 
     mode = st.radio("Prediction mode", ["AI", "ML"], horizontal=True)
-    st.caption("ML = Linear Regression forecast on daily totals.")
+    st.caption("ML uses Linear Regression trained on daily totals.")
 
     if not coffee_file or not croissant_file:
-        st.info("Upload BOTH CSV files to continue.")
+        st.info("Upload both CSV files to continue.")
         return
 
     try:
@@ -615,7 +755,7 @@ def page_predictions_dashboard() -> None:
     df_all["units_sold"] = pd.to_numeric(df_all["units_sold"], errors="coerce").fillna(0)
     df_all = df_all.dropna(subset=["date"]).sort_values("date")
 
-    with st.expander("🔎 Debug (cleaned data preview)"):
+    with st.expander("Data preview"):
         st.write("Coffee (long format):")
         st.dataframe(coffee_long.head(10), use_container_width=True)
         st.write("Croissant (long format):")
@@ -623,19 +763,19 @@ def page_predictions_dashboard() -> None:
         st.write("Combined:")
         st.dataframe(df_all.head(10), use_container_width=True)
 
-    st.subheader("🏆 Best selling products (overall)")
+    st.subheader("Best selling products")
     totals = df_all.groupby("product")["units_sold"].sum().sort_values(ascending=False)
     top3 = totals.head(3)
 
     cols = st.columns(3)
-    medals = ["🥇 1st", "🥈 2nd", "🥉 3rd"]
+    labels = ["Top 1", "Top 2", "Top 3"]
     for i in range(3):
         if i < len(top3):
             product = top3.index[i]
             units = int(top3.iloc[i])
-            cols[i].metric(medals[i], product, f"{units:,} sold")
+            cols[i].metric(labels[i], product, f"{units:,} sold")
         else:
-            cols[i].metric(medals[i], "-", "-")
+            cols[i].metric(labels[i], "-", "-")
 
     left, right = st.columns([3, 2])
 
@@ -644,8 +784,8 @@ def page_predictions_dashboard() -> None:
 
     with left:
         chart_section_title(
-            "📈 Daily total sales (easy view)",
-            "Bars = sales each day • Line = 7-day average (smooth trend)",
+            "Daily total sales",
+            "Bars show daily sales. The line shows the 7-day average.",
         )
 
         daily_chart_df = pd.DataFrame({"Daily sales": daily_total, "7-day average": daily_ma7})
@@ -653,14 +793,14 @@ def page_predictions_dashboard() -> None:
         st.line_chart(daily_chart_df[["7-day average"]])
 
         friendly_kpi_help(
-            "How to read this",
-            "If the bars go up and the 7-day average line rises, sales are increasing. "
-            "If the line falls, sales are decreasing. The line is there so you don’t overreact to one weird day.",
+            "Reading the trend",
+            "If the bars rise over time and the 7-day average rises, sales are increasing. "
+            "If the 7-day average falls, sales are decreasing.",
         )
 
         chart_section_title(
-            "🧁 Sales by product (top 5)",
-            "Shows the products with the most total sales in the period.",
+            "Sales by product",
+            "Top 5 products by total units sold.",
         )
         pivot = (
             df_all.pivot_table(index="date", columns="product", values="units_sold", aggfunc="sum")
@@ -673,12 +813,12 @@ def page_predictions_dashboard() -> None:
         else:
             st.info("No product data to chart.")
 
-        st.caption("Tip: If one product line is flat/near zero most of the time, it may be overstock risk.")
+        st.caption("If a product stays near zero most days, it may be higher waste risk if overstocked.")
 
     with right:
         chart_section_title(
-            "🗓️ Weekday pattern",
-            "Helps spot which days are naturally busier (useful for staffing & stock).",
+            "Weekday pattern",
+            "Average units sold by weekday.",
         )
 
         weekday_order = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
@@ -694,32 +834,32 @@ def page_predictions_dashboard() -> None:
 
         st.write("")
         chart_section_title(
-            "⚠️ Low-average products (simple risk list)",
-            "Below-average daily sales compared to the overall mean (very basic rule).",
+            "Lower-volume products",
+            "Products below the overall average daily sales (basic indicator).",
         )
         avg = df_all.groupby("product")["units_sold"].mean().sort_values()
         threshold = float(avg.mean()) if len(avg) else 0.0
         risky = avg[avg < threshold].head(8)
 
         if risky.empty:
-            st.success("No obvious low-average products using this simple rule.")
+            st.success("No obvious low-volume products using this rule.")
         else:
             st.dataframe(risky.rename("Average units/day").to_frame(), use_container_width=True)
             friendly_kpi_help(
-                "What this means",
-                "These items sell less than the overall average. They’re candidates for smaller batches, "
-                "promotions, or reviewing whether they’re worth stocking as much.",
+                "What this indicates",
+                "These items sell less than the overall average. Consider smaller batches, promotions, "
+                "or reviewing whether to stock as much.",
             )
 
         st.write("")
         chart_section_title(
-            "✅ Simple weekly target suggestion",
-            "Based on your last 14 days average (not a guarantee).",
+            "Weekly target suggestion",
+            "Based on the average of the last 14 days.",
         )
         amount_to_sell = int(max(0, daily_total.tail(14).mean() * 7)) if len(daily_total) else 0
-        st.markdown(f"### Suggested weekly stock target: **{amount_to_sell:,} units**")
+        st.markdown(f"### Suggested weekly target: **{amount_to_sell:,} units**")
 
-    st.subheader("🔮 Prediction for next 4 weeks (easy view)")
+    st.subheader("Forecast (next 4 weeks)")
 
     if mode == "AI":
         pred_raw = simple_forecast(daily_total, days=FORECAST_DAYS)
@@ -733,20 +873,20 @@ def page_predictions_dashboard() -> None:
     pred_series = pd.Series(pred_raw["predicted"].values, index=future_index)
     band_df = make_pred_band(pred_series, daily_total)
 
-    st.caption("Line = predicted daily sales • Band = typical variation based on recent days (friendly range)")
+    st.caption("Predicted daily sales with a variation band based on recent volatility.")
     st.line_chart(band_df[["predicted", "lower", "upper"]])
 
     friendly_kpi_help(
-        "How to use this",
-        "Use the prediction as a planning guide, not a promise. If your real sales start tracking near the upper band, "
-        "you may need more stock. If they’re near the lower band, reduce waste risk.",
+        "Using the forecast",
+        "Use the forecast for planning. If actual sales track near the upper band, plan for more stock. "
+        "If they track near the lower band, reduce waste risk.",
     )
 
-    with st.expander("🧠 Prediction details"):
+    with st.expander("Forecast details"):
         if mode == "AI":
-            st.write("**AI mode**: rolling mean + light recent trend (heuristic baseline).")
+            st.write("AI mode uses a rolling mean with a light recent trend.")
         else:
-            st.write("**ML mode**: Linear Regression trained on daily total sales vs time index.")
+            st.write("ML mode uses Linear Regression trained on daily total sales vs time index.")
             if not model_info.get("ok", False):
                 st.warning(f"ML fallback used: {model_info.get('reason', 'unknown reason')}")
                 if not SKLEARN_OK:
@@ -755,12 +895,12 @@ def page_predictions_dashboard() -> None:
                 st.write(f"- Slope (units/day): **{model_info['slope_per_day']:.4f}**")
                 st.write(f"- Intercept: **{model_info['intercept']:.4f}**")
                 st.write(f"- R² (training fit): **{model_info['r2_train']:.3f}**")
-                st.caption("R² shown is on training data (simple baseline for coursework).")
+                st.caption("R² shown is on training data (baseline for coursework).")
 
     out = band_df.reset_index().rename(columns={"index": "date"})
     csv_bytes = out.to_csv(index=False).encode("utf-8")
     st.download_button(
-        "⬇️ Download 4-week prediction (CSV)",
+        "Download 4-week forecast (CSV)",
         data=csv_bytes,
         file_name="prediction_next_4_weeks.csv",
         mime="text/csv",
@@ -778,7 +918,7 @@ if not login_gate():
 
 # Sidebar (session + navigation)
 with st.sidebar:
-    st.markdown("### 👤 Session")
+    st.markdown("### Session")
     st.write(f"User: **{st.session_state.username}**")
     st.write(f"Role: **{st.session_state.role}**")
     logout_button()
