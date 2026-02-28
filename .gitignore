@@ -1,7 +1,4 @@
-# --- Python / Virtualenv ---
-.venv/
-venv/
-env/
+# ---- Python ----
 __pycache__/
 *.py[cod]
 *.pyd
@@ -9,26 +6,25 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+.pytest_cache/
+.mypy_cache/
+.venv/
+venv/
+ENV/
+env/
+pip-wheel-metadata/
 
-# --- Streamlit ---
-.streamlit/secrets.toml
-.streamlit/*.log
+# ---- VS Code ----
+.vscode/
 
-# --- Local data / outputs ---
-sales_entries.csv
-sales.db
-*.sqlite
-*.sqlite3
-prediction_next_4_weeks.csv
-
-# --- OS / Editor junk ---
+# ---- OS ----
 .DS_Store
 Thumbs.db
-.vscode/
-.idea/
 
-# --- Jupyter ---
-.ipynb_checkpoints/
+# ---- Streamlit ----
+.streamlit/secrets.toml
 
-# --- Logs ---
-*.log
+# ---- Project runtime data (optional but recommended) ----
+# If these are generated while running the app, keep them out of git to avoid merge conflicts:
+users.csv
+sales_entries.csv
