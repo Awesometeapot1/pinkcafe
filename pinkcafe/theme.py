@@ -6,7 +6,7 @@ import streamlit as st
 THEMES = {
     # Your current look, but parameterised
     "blackpink_pro": {
-        "label": "BLACKPINK Pro",
+        "label": "BLACKPINK ",
         "mode": "dark",
         "vars": {
             "--bp-bg": "#06060A",
@@ -33,61 +33,98 @@ THEMES = {
         },
     },
 
-    # Higher accessibility contrast, still dark + pink accents
-    "high_contrast": {
-        "label": "High Contrast Dark",
-        "mode": "dark",
-        "vars": {
-            "--bp-bg": "#000000",
-            "--bp-bg-2": "#050505",
-            "--bp-surface": "rgba(255,255,255,0.10)",
-            "--bp-surface-2": "rgba(255,255,255,0.14)",
-            "--bp-border": "rgba(255,105,180,0.45)",
-            "--bp-border-strong": "rgba(255,105,180,0.70)",
-            "--bp-text": "#FFFFFF",
-            "--bp-text-dim": "rgba(255,255,255,0.90)",
-            "--bp-text-mute": "rgba(255,255,255,0.78)",
-            "--bp-pink": "#ff69b4",
-            "--bp-pink-2": "#ff2d95",
-            "--bp-shadow": "0 10px 30px rgba(0,0,0,0.70)",
-            "--bp-radius": "18px",
-            "--bp-radius-sm": "12px",
-            "--bp-accent-a": "rgba(255,105,180,0.14)",
-            "--bp-accent-b": "rgba(255,45,149,0.12)",
-            "--bp-grad-bottom": "#000000",
-            "--bp-button-text": "#000000",
-            "--bp-input-bg": "rgba(0,0,0,0.78)",
-        },
-    },
+    # Higher accessibility contrast, still dark + pink accents (improved)
+"high_contrast": {
+    "label": "High Contrast Dark (BP Pro)",
+    "mode": "dark",
+    "vars": {
+        # Backgrounds: avoid pure black to reduce eye strain
+        "--bp-bg": "#0B0B10",
+        "--bp-bg-2": "#11111A",
+        "--bp-grad-bottom": "#07070B",
 
-    # Optional: a light theme for report-style viewing
-    "light_clean": {
-        "label": "Light (Clean)",
-        "mode": "light",
-        "vars": {
-            "--bp-bg": "#FFFFFF",
-            "--bp-bg-2": "#FAFAFC",
-            "--bp-surface": "rgba(0,0,0,0.04)",
-            "--bp-surface-2": "rgba(0,0,0,0.06)",
-            "--bp-border": "rgba(255,105,180,0.30)",
-            "--bp-border-strong": "rgba(255,105,180,0.50)",
-            "--bp-text": "#0B0B10",
-            "--bp-text-dim": "rgba(11,11,16,0.84)",
-            "--bp-text-mute": "rgba(11,11,16,0.66)",
-            "--bp-pink": "#ff2d95",
-            "--bp-pink-2": "#ff69b4",
-            "--bp-shadow": "0 10px 26px rgba(0,0,0,0.10)",
-            "--bp-radius": "18px",
-            "--bp-radius-sm": "12px",
-            "--bp-accent-a": "rgba(255,105,180,0.10)",
-            "--bp-accent-b": "rgba(255,45,149,0.08)",
-            "--bp-grad-bottom": "#FFFFFF",
-            "--bp-button-text": "#FFFFFF",
-            "--bp-input-bg": "rgba(255,255,255,0.95)",
-        },
+        # Surfaces: slightly lighter than bg so cards separate clearly
+        "--bp-surface": "rgba(255,255,255,0.06)",
+        "--bp-surface-2": "rgba(255,255,255,0.09)",
+
+        # Borders: mostly neutral, pink used as accent
+        "--bp-border": "rgba(255,255,255,0.14)",
+        "--bp-border-strong": "rgba(255,45,149,0.55)",
+
+        # Text: crisp white + sensible hierarchy
+        "--bp-text": "#F6F7FB",
+        "--bp-text-dim": "rgba(246,247,251,0.86)",
+        "--bp-text-mute": "rgba(246,247,251,0.68)",
+
+        # Accents: slightly less neon, more “premium”
+        "--bp-pink": "#FF2D95",
+        "--bp-pink-2": "#FF6BBE",
+
+        # Shadows: cleaner, less muddy
+        "--bp-shadow": "0 14px 40px rgba(0,0,0,0.65)",
+
+        # Radii
+        "--bp-radius": "18px",
+        "--bp-radius-sm": "12px",
+
+        # Accent fills for subtle highlights / chips
+        "--bp-accent-a": "rgba(255,45,149,0.16)",
+        "--bp-accent-b": "rgba(255,107,190,0.12)",
+
+        # Inputs: darker than surface so they look “editable”
+        "--bp-input-bg": "rgba(12,12,18,0.90)",
+
+        # Button text: on pink buttons use near-black for contrast
+        "--bp-button-text": "#0B0B10",
+    },
+},
+
+# Light theme for report-style viewing (improved)
+"light_clean": {
+    "label": "Light (Clean BP)",
+    "mode": "light",
+    "vars": {
+        # Backgrounds: slightly tinted so it doesn't feel sterile
+        "--bp-bg": "#FFFFFF",
+        "--bp-bg-2": "#F7F7FB",
+        "--bp-grad-bottom": "#FFFFFF",
+
+        # Surfaces: soft elevation
+        "--bp-surface": "rgba(11,11,16,0.04)",
+        "--bp-surface-2": "rgba(11,11,16,0.06)",
+
+        # Borders: neutral base, pink accent
+        "--bp-border": "rgba(11,11,16,0.12)",
+        "--bp-border-strong": "rgba(255,45,149,0.40)",
+
+        # Text: deep neutral (not pure black)
+        "--bp-text": "#0B0B10",
+        "--bp-text-dim": "rgba(11,11,16,0.82)",
+        "--bp-text-mute": "rgba(11,11,16,0.62)",
+
+        # Accents: consistent with dark theme
+        "--bp-pink": "#FF2D95",
+        "--bp-pink-2": "#FF6BBE",
+
+        # Shadows: subtle but present
+        "--bp-shadow": "0 12px 30px rgba(11,11,16,0.10)",
+
+        # Radii
+        "--bp-radius": "18px",
+        "--bp-radius-sm": "12px",
+
+        # Accent fills (very light)
+        "--bp-accent-a": "rgba(255,45,149,0.10)",
+        "--bp-accent-b": "rgba(255,107,190,0.08)",
+
+        # Inputs: white but slightly separated
+        "--bp-input-bg": "rgba(255,255,255,0.96)",
+
+        # Button text: on pink buttons, white reads cleanest in light theme
+        "--bp-button-text": "#FFFFFF",
     },
 }
-
+}
 
 # ----------------------------
 # Helpers
