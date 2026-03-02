@@ -1,3 +1,4 @@
+# auth.py
 from __future__ import annotations
 
 import hashlib
@@ -5,6 +6,8 @@ import pandas as pd
 import streamlit as st
 
 from constants import USERS_FILE
+from theme import theme_options  # [(key,label), ...]
+
 
 def _pw_hash(password: str, salt: str) -> str:
     password_b = (password or "").encode("utf-8")
@@ -12,6 +15,7 @@ def _pw_hash(password: str, salt: str) -> str:
     iterations = 200_000
     dk = hashlib.pbkdf2_hmac("sha256", password_b, salt_b, iterations)
     return f"pbkdf2_sha256${iterations}${salt}${dk.hex()}"
+
 
 def _pw_verify(password: str, stored: str) -> bool:
     try:
@@ -29,6 +33,7 @@ def _pw_verify(password: str, stored: str) -> bool:
     except Exception:
         return False
 
+
 def ensure_users_file() -> None:
     if USERS_FILE.exists():
         return
@@ -40,6 +45,7 @@ def ensure_users_file() -> None:
         ]
     )
     default.to_csv(USERS_FILE, index=False)
+
 
 @st.cache_data
 def load_users() -> pd.DataFrame:
@@ -57,6 +63,7 @@ def load_users() -> pd.DataFrame:
     dfu = dfu[dfu["username"] != ""].drop_duplicates(subset=["username"], keep="last")
     return dfu.reset_index(drop=True)
 
+
 def save_users(dfu: pd.DataFrame) -> None:
     out = dfu.copy()
     out["username"] = out["username"].astype(str).str.strip().str.lower()
@@ -66,6 +73,7 @@ def save_users(dfu: pd.DataFrame) -> None:
     out.to_csv(USERS_FILE, index=False)
     st.cache_data.clear()
 
+
 def get_user_record(username: str) -> dict | None:
     dfu = load_users()
     u = (username or "").strip().lower()
@@ -74,6 +82,7 @@ def get_user_record(username: str) -> dict | None:
         return None
     r = hit.iloc[0].to_dict()
     return {"username": r["username"], "role": r["role"], "pw_hash": r["pw_hash"]}
+
 
 def create_user(username: str, password: str, role: str) -> tuple[bool, str]:
     u = (username or "").strip().lower()
@@ -96,6 +105,7 @@ def create_user(username: str, password: str, role: str) -> tuple[bool, str]:
     save_users(dfu)
     return True, "User created."
 
+
 def update_password(username: str, new_password: str) -> tuple[bool, str]:
     u = (username or "").strip().lower()
     if len(new_password or "") < 6:
@@ -110,6 +120,7 @@ def update_password(username: str, new_password: str) -> tuple[bool, str]:
     dfu.loc[m, "pw_hash"] = _pw_hash(new_password, salt)
     save_users(dfu)
     return True, "Password updated."
+
 
 def update_role(username: str, new_role: str) -> tuple[bool, str]:
     u = (username or "").strip().lower()
@@ -126,6 +137,7 @@ def update_role(username: str, new_role: str) -> tuple[bool, str]:
     save_users(dfu)
     return True, "Role updated."
 
+
 def delete_user(username: str) -> tuple[bool, str]:
     u = (username or "").strip().lower()
     if u == "admin":
@@ -140,11 +152,16 @@ def delete_user(username: str) -> tuple[bool, str]:
     save_users(dfu)
     return True, "User deleted."
 
+
 def login_gate() -> bool:
     if "logged_in" not in st.session_state:
         st.session_state.logged_in = False
         st.session_state.username = None
         st.session_state.role = None
+
+    # Ensure theme exists even before login
+    if "theme_key" not in st.session_state:
+        st.session_state.theme_key = "blackpink_pro"
 
     if st.session_state.logged_in:
         return True
@@ -153,6 +170,28 @@ def login_gate() -> bool:
     with mid:
         st.markdown('<div class="bp-card">', unsafe_allow_html=True)
         st.markdown('<div class="bp-badge">BLACKPINK • Café Portal</div>', unsafe_allow_html=True)
+
+        # ✅ Theme toggle (pill-style)
+        opts = theme_options()  # [(key,label), ...]
+        keys = [k for k, _ in opts]
+        labels = [lbl for _, lbl in opts]
+
+        current_key = st.session_state.theme_key if st.session_state.theme_key in keys else keys[0]
+        current_label = labels[keys.index(current_key)]
+
+        chosen_label = st.radio(
+            "Theme",
+            labels,
+            horizontal=True,
+            index=labels.index(current_label),
+            key="login_theme_toggle",
+        )
+
+        chosen_key = keys[labels.index(chosen_label)]
+        if chosen_key != st.session_state.theme_key:
+            st.session_state.theme_key = chosen_key
+            st.rerun()
+
         st.markdown("## Login")
 
         with st.form("bp_login_form", clear_on_submit=False):
@@ -178,6 +217,7 @@ def login_gate() -> bool:
         st.markdown("</div>", unsafe_allow_html=True)
 
     return False
+
 
 def logout_button() -> None:
     if st.button("Log out"):
