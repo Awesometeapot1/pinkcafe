@@ -1,0 +1,91 @@
+# ----------------------------
+# Python / Bytecode
+# ----------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+
+# ----------------------------
+# Virtual environments
+# ----------------------------
+venv/
+.venv/
+__pycache__/
+*.pyc
+
+# ----------------------------
+# Packaging / Build
+# ----------------------------
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+
+# ----------------------------
+# Testing / Coverage
+# ----------------------------
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.mypy_cache/
+.ruff_cache/
+
+# ----------------------------
+# Jupyter
+# ----------------------------
+.ipynb_checkpoints/
+
+# ----------------------------
+# OS / Editor junk
+# ----------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ----------------------------
+# Streamlit
+# ----------------------------
+.streamlit/secrets.toml
+.streamlit/config.toml
+.streamlit/credentials.toml
+
+# Streamlit cache (sometimes created)
+.streamlit/cache/
+
+# ----------------------------
+# Local project data (optional)
+# If you want these files NOT committed, keep them ignored.
+# If you DO want them committed, delete these lines.
+# ----------------------------
+users.csv
+sales_entries.csv
+sales_filtered.csv
+prediction_next_4_weeks.csv
+prediction_next_8_weeks.csv
+
+# Optional: ignore uploaded datasets / exports you don't want in git
+*.csv
+*.xlsx
+
+# BUT keep your required template / teacher price file tracked:
+!product_prices.csv
+
+# ----------------------------
+# Logs
+# ----------------------------
+*.log
+
+# ----------------------------
+# Environment variables
+# ----------------------------
+.env
+.env.*
