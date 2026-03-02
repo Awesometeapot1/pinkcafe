@@ -107,7 +107,18 @@ Number Sold (or similar)
 
 8) Project structure (recommended)
 pinkcafe/
-  dashboardfoodwastage.py
+  app.py
+  constants.py
+  theme.py
+  auth.py
+  storage.py
+  forecasting.py
+  pages/
+    __init__.py
+    staff.py
+    manager.py
+    admin.py
+    predictions.py
   product_prices.csv
   sales_entries.csv          (created by app after staff saves sales)
   requirements.txt           (optional)
@@ -122,13 +133,8 @@ python -m pip install streamlit pandas numpy scikit-learn
 “streamlit is not recognized…”
 Use:
 
-python -m streamlit run dashboardfoodwastage.py
-10) Notes
-ML mode uses Linear Regression (simple baseline) and shows training R².
+python -m streamlit run pinkcafe/app.py
 
-AI mode uses a rolling mean + light trend heuristic.
-
-Demo login is for coursework / prototype purposes; upgrade to hashed passwords + secrets for production-style security.
 
 
 
