@@ -3,10 +3,11 @@
 A Streamlit dashboard for the Bristol Pink Café case study:
 - Upload café CSV sales files (coffee + croissant)
 - View sales trends and best sellers
-- Predict the next 4 weeks (AI heuristic or ML Linear Regression)
+- Predict the next 4 weeks (AI heuristic or ML Linear Regression or ML random forest) and can be toggled to 8 weeks
 - Role-based access:
-  - **Staff**: record sales entries
-  - **Manager**: view sales totals, charts, records, and export CSV
+  - **Admin**: allows you to create more staff and manager accounts if needed and does everything a manager can
+  - **Staff**: record sales entries, can also see and esport csv files
+  - **Manager**: view sales totals, charts, records, and export CSV and edit sales entries
 
 ---
 
