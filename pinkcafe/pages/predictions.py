@@ -86,11 +86,15 @@ def _download_csv_button(label: str, df: pd.DataFrame, filename: str) -> None:
 
 
 def _detect_coffee_layout(uploaded_file) -> str:
+    """
+    Best-effort detection for report-friendly data checks.
+    """
     try:
         try:
             uploaded_file.seek(0)
         except Exception:
             pass
+
         df = pd.read_csv(uploaded_file, nrows=2)
         cols = [str(c).strip() for c in df.columns]
         has_unnamed = any(str(c).lower().startswith("unnamed") for c in cols)
@@ -154,6 +158,9 @@ def _data_quality_checks(df_all: pd.DataFrame, daily_total: pd.Series) -> dict[s
 
 
 def _buffer_from_disagreement(future_models_df: pd.DataFrame, next_days: int = 7) -> tuple[float, str]:
+    """
+    Use model disagreement (std/mean across models) to pick a sensible buffer.
+    """
     if future_models_df is None or future_models_df.empty:
         return 0.10, "Default buffer (no disagreement data)."
 
@@ -161,7 +168,6 @@ def _buffer_from_disagreement(future_models_df: pd.DataFrame, next_days: int = 7
     mean = df.mean(axis=1)
     std = df.std(axis=1)
     ratio = (std / mean.replace(0, pd.NA)).fillna(0)
-
     avg_cv = float(ratio.mean()) if len(ratio) else 0.0
 
     if avg_cv < 0.10:
@@ -186,23 +192,18 @@ def _apply_filters(
     """
     df = df_all.copy()
 
-    # Date range
     df["date"] = pd.to_datetime(df["date"], errors="coerce").dt.normalize()
     df = df[df["date"].notna()].copy()
     df = df[(df["date"] >= pd.to_datetime(date_start)) & (df["date"] <= pd.to_datetime(date_end))].copy()
 
-    # Weekday filter
     if selected_days:
         df = df[df["date"].dt.dayofweek.isin(selected_days)].copy()
     else:
-        # no days selected — return empty so UI can warn
         return df.iloc[0:0].copy()
 
-    # Product filter
     if selected_products:
         df = df[df["product"].isin(selected_products)].copy()
     else:
-        # no products selected — return empty so UI can warn
         return df.iloc[0:0].copy()
 
     return df
@@ -227,7 +228,9 @@ def page_predictions_dashboard() -> None:
     modes = list(mode_help.keys())
     label_map = _model_label_map()
 
-    # STEP 1 — UPLOAD
+    # =========================
+    # STEP 1 — Upload
+    # =========================
     _section("Step 1 — Upload your sales files", "Upload BOTH files to continue.")
     c1, c2 = st.columns(2)
     with c1:
@@ -241,7 +244,9 @@ def page_predictions_dashboard() -> None:
 
     coffee_format_note = _detect_coffee_layout(coffee_file)
 
-    # LOAD DATA
+    # =========================
+    # Load data
+    # =========================
     coffee_long = load_coffee_weird_layout(coffee_file)
     croissant_long = load_simple_product_file(croissant_file, "Croissant")
 
@@ -251,57 +256,92 @@ def page_predictions_dashboard() -> None:
     df_all["date"] = pd.to_datetime(df_all["date"]).dt.normalize()
     df_all["product"] = df_all["product"].astype(str).str.strip()
 
-    # Filters header
+    # =========================
+    # Filters (compact, no big pink buttons)
+    # =========================
     _section("Filters", "Pick days and products to include (applies to Overview + Forecast).")
 
-    # Date range defaults
     min_date = df_all["date"].min().date()
     max_date = df_all["date"].max().date()
-
-    # PRODUCTS: show a checkbox per product with a "Select all" control
     all_products = sorted(df_all["product"].dropna().unique().tolist())
-    st.markdown("**Products** — pick one or multiple")
-    prod_cols = st.columns(4)
-    select_all_prod = st.checkbox("Select all products", value=True, key="prod_select_all")
-    selected_products = []
 
-    # create product checkboxes (unique keys)
-    for i, p in enumerate(all_products):
-        col = prod_cols[i % len(prod_cols)]
-        default = True if select_all_prod else False
-        checked = col.checkbox(p, value=default, key=f"prod_chk_{i}_{p}")
-        if checked:
-            selected_products.append(p)
-
-    # DAY-OF-WEEK: checkboxes for every day
-    st.markdown("**Days of week** — pick any combination")
-    dow_cols = st.columns(4)
-    days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-    dow_selected_indexes: list[int] = []
-    for i, d in enumerate(days):
-        col = dow_cols[i % len(dow_cols)]
-        # default all True
-        checked = col.checkbox(d, value=True, key=f"dow_chk_{i}_{d}")
-        if checked:
-            dow_selected_indexes.append(i)  # 0 = Monday ... 6 = Sunday
-
-    # Date range picker
-    dr = st.date_input("Date range", value=(min_date, max_date), min_value=min_date, max_value=max_date)
+    # Date range
+    dr = st.date_input(
+        "Date range",
+        value=(min_date, max_date),
+        min_value=min_date,
+        max_value=max_date,
+        key="flt_date_range",
+    )
     if isinstance(dr, tuple) and len(dr) == 2:
         date_start, date_end = dr
     else:
         date_start, date_end = min_date, max_date
 
+    # Defaults
+    days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    day_idx = {d: i for i, d in enumerate(days)}
+
+    if "flt_days_selected" not in st.session_state:
+        st.session_state.flt_days_selected = set(days)
+
+    if "flt_products_selected" not in st.session_state:
+        st.session_state.flt_products_selected = set(all_products)
+
+
+    # Products (collapsible)
+    with st.expander("Products", expanded=False):
+        st.caption("Tick one or multiple products.")
+        cols = st.columns(3)
+        selected_now = set()
+        for i, prod in enumerate(all_products):
+            col = cols[i % 3]
+            key = f"flt_prod_{i}_{prod}"
+            checked = col.checkbox(
+                prod,
+                value=(prod in st.session_state.flt_products_selected),
+                key=key,
+            )
+            if checked:
+                selected_now.add(prod)
+        st.session_state.flt_products_selected = selected_now
+
+    # Days (collapsible)
+    with st.expander("Days of week", expanded=False):
+        st.caption("Tick any combination of days.")
+        cols = st.columns(4)
+        selected_days_now = set()
+        for i, d in enumerate(days):
+            col = cols[i % 4]
+            key = f"flt_day_{i}_{d}"
+            checked = col.checkbox(
+                d,
+                value=(d in st.session_state.flt_days_selected),
+                key=key,
+            )
+            if checked:
+                selected_days_now.add(d)
+        st.session_state.flt_days_selected = selected_days_now
+
+    selected_products = sorted(st.session_state.flt_products_selected)
+    selected_day_names = sorted(st.session_state.flt_days_selected, key=lambda x: day_idx[x])
+    selected_day_indexes = [day_idx[d] for d in selected_day_names]
+
+    # Summary line
+    prod_summary = "All products" if len(selected_products) == len(all_products) else ", ".join(selected_products)
+    day_summary = "All days" if len(selected_day_names) == 7 else ", ".join(selected_day_names)
+    st.caption(f"Current filters: {prod_summary} • {day_summary} • {date_start} → {date_end}")
+
     # Guardrails
     if not selected_products:
-        st.warning("No product selected — please pick at least one product.")
+        st.warning("No product selected — open Products and tick at least one.")
         return
-    if not dow_selected_indexes:
-        st.warning("No day of week selected — please pick at least one day.")
+    if not selected_day_indexes:
+        st.warning("No day selected — open Days of week and tick at least one.")
         return
 
     # Apply filters
-    df_filtered = _apply_filters(df_all, selected_products, dow_selected_indexes, date_start, date_end)
+    df_filtered = _apply_filters(df_all, selected_products, selected_day_indexes, date_start, date_end)
     if df_filtered.empty:
         st.warning("No data matches your filters. Adjust the filters and try again.")
         return
@@ -310,7 +350,9 @@ def page_predictions_dashboard() -> None:
     daily_total = df_filtered.groupby("date")["units_sold"].sum().asfreq("D").fillna(0)
     daily_ma7 = moving_average(daily_total, 7)
 
-    # DATA CHECKS
+    # =========================
+    # Data checks
+    # =========================
     with st.expander("Data checks (quality & parsing)"):
         st.write(coffee_format_note)
         st.caption("Checks shown below are based on your CURRENT filtered view.")
@@ -334,7 +376,9 @@ def page_predictions_dashboard() -> None:
 
     tab_overview, tab_forecast, tab_explain = st.tabs(["Overview", "Forecast", "Explain"])
 
-    # OVERVIEW TAB
+    # =========================
+    # Overview
+    # =========================
     with tab_overview:
         _section("Step 2 — Understand your sales", "Patterns and weekly behaviour (filtered).")
 
@@ -345,7 +389,7 @@ def page_predictions_dashboard() -> None:
             st.bar_chart(daily_total)
             st.line_chart(daily_ma7)
 
-            _section("Top products (filtered)", "Best-selling items in current view.")
+            _section("Top products (filtered)", "Best-selling items in your current view.")
             totals = df_filtered.groupby("product")["units_sold"].sum().sort_values(ascending=False)
             st.bar_chart(totals.head(10))
 
@@ -353,17 +397,23 @@ def page_predictions_dashboard() -> None:
             _section("Weekday pattern (filtered)", "Average units sold by day of week.")
             weekday_order = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
             df_weekday = df_filtered.copy()
-            df_weekday["weekday"] = pd.Categorical(df_weekday["date"].dt.day_name(), categories=weekday_order, ordered=True)
+            df_weekday["weekday"] = pd.Categorical(
+                df_weekday["date"].dt.day_name(),
+                categories=weekday_order,
+                ordered=True,
+            )
             weekday_sales = df_weekday.groupby("weekday", observed=False)["units_sold"].mean().fillna(0)
             st.bar_chart(weekday_sales)
 
             st.write("")
-            _section("Practical weekly target", "A simple planning figure (based on last 14 days, filtered).")
+            _section("Practical weekly target", "Planning figure (based on last 14 days, filtered).")
             suggested_weekly = int(daily_total.tail(14).mean() * 7) if len(daily_total) else 0
             st.markdown(f"### Suggested weekly target: **{suggested_weekly:,} units**")
             st.caption("Use this as a starting point when ordering ingredients / staffing.")
 
-    # FORECAST TAB
+    # =========================
+    # Forecast
+    # =========================
     with tab_forecast:
         _section("Forecast settings")
 
@@ -385,9 +435,13 @@ def page_predictions_dashboard() -> None:
 
         s = daily_total.copy().sort_index().asfreq("D").fillna(0)
 
+        st.write("")
         _section("Compare all models on one graph", "Switch between Holdout (vs actual) and Future (model forecasts).")
-
-        compare_mode = st.radio("Comparison view", ["Holdout (compare to actual)", "Future (compare forecasts)"], horizontal=True)
+        compare_mode = st.radio(
+            "Comparison view",
+            ["Holdout (compare to actual)", "Future (compare forecasts)"],
+            horizontal=True,
+        )
 
         holdout_compare_df = pd.DataFrame()
         future_compare_df = pd.DataFrame()
@@ -419,7 +473,7 @@ def page_predictions_dashboard() -> None:
                 st.line_chart(future_compare_df)
                 st.caption("Model disagreement indicates uncertainty (useful for planning buffers).")
 
-        # ACTION RECOMMENDATIONS
+        # Action recommendations
         st.write("")
         _section("Action recommendations", "Turn the forecast into a practical plan (filtered).")
 
@@ -447,7 +501,6 @@ def page_predictions_dashboard() -> None:
 
         buffer_pct, buffer_reason = _buffer_from_disagreement(all_future_models, next_days=7)
         buffered_week = math.ceil(next7_total * (1.0 + buffer_pct))
-
         recent_week_avg = float(s.tail(28).mean() * 7) if len(s) else 0.0
 
         a1, a2, a3 = st.columns(3)
@@ -461,7 +514,7 @@ def page_predictions_dashboard() -> None:
             st.markdown(f"### Recent weekly baseline\n**{recent_week_avg:,.0f} units**")
             st.caption("Based on average daily sales over the last 28 days.")
 
-        # DOWNLOADS
+        # Downloads
         st.write("")
         _section("Download CSV exports", "Export charts and forecasts for reports / submission.")
 
@@ -504,7 +557,6 @@ def page_predictions_dashboard() -> None:
                 "upper": "Upper bound",
             }
         )
-
         st.line_chart(band_show[[f"Predicted ({chosen_label})", "Lower bound", "Upper bound"]])
 
         with d3:
@@ -516,7 +568,9 @@ def page_predictions_dashboard() -> None:
                 f"forecast_{chosen_label.replace(' ', '_').replace('(', '').replace(')', '').lower()}_{horizon_weeks}w.csv",
             )
 
-    # EXPLAIN TAB
+    # =========================
+    # Explain
+    # =========================
     with tab_explain:
         _section("Explain the forecasting", "Plain-English summary of each model.")
         for k, v in mode_help.items():
