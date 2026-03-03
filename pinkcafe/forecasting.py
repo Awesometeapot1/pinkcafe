@@ -1,3 +1,4 @@
+# forecasting.py
 from __future__ import annotations
 
 from typing import Tuple
@@ -15,13 +16,16 @@ except Exception:
     GradientBoostingRegressor = None
     SKLEARN_OK = False
 
+
 def normalize_cols(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
     df.columns = [str(c).strip() for c in df.columns]
     return df
 
+
 def parse_date_series(s: pd.Series) -> pd.Series:
     return pd.to_datetime(s, dayfirst=True, errors="coerce")
+
 
 def load_coffee_weird_layout(uploaded_file) -> pd.DataFrame:
     df = pd.read_csv(uploaded_file)
@@ -78,6 +82,7 @@ def load_coffee_weird_layout(uploaded_file) -> pd.DataFrame:
 
     raise ValueError("Coffee file format not recognised.")
 
+
 def load_simple_product_file(uploaded_file, product_name: str) -> pd.DataFrame:
     df = pd.read_csv(uploaded_file)
     df = normalize_cols(df)
@@ -107,9 +112,11 @@ def load_simple_product_file(uploaded_file, product_name: str) -> pd.DataFrame:
     out["product"] = product_name
     return out[["date", "product", "units_sold"]]
 
+
 def moving_average(s: pd.Series, window: int = 7) -> pd.Series:
     s = s.sort_index()
     return s.rolling(window=window, min_periods=max(1, window // 2)).mean()
+
 
 def simple_forecast(series: pd.Series, days: int) -> pd.DataFrame:
     s = series.dropna()
@@ -128,6 +135,7 @@ def simple_forecast(series: pd.Series, days: int) -> pd.DataFrame:
 
     future = [max(0.0, last + slope * i) for i in range(1, days + 1)]
     return pd.DataFrame({"predicted": future})
+
 
 def linear_regression_forecast(series: pd.Series, days: int) -> Tuple[pd.DataFrame, dict]:
     if not SKLEARN_OK or LinearRegression is None:
@@ -148,8 +156,15 @@ def linear_regression_forecast(series: pd.Series, days: int) -> Tuple[pd.DataFra
     y_future = np.clip(model.predict(X_future), 0, None)
 
     pred_df = pd.DataFrame({"predicted": y_future})
-    info = {"ok": True, "type": "linear_regression", "slope_per_day": float(model.coef_[0]), "intercept": float(model.intercept_), "r2_train": r2}
+    info = {
+        "ok": True,
+        "type": "linear_regression",
+        "slope_per_day": float(model.coef_[0]),
+        "intercept": float(model.intercept_),
+        "r2_train": r2,
+    }
     return pred_df, info
+
 
 def make_rf_features(series: pd.Series) -> pd.DataFrame:
     s = series.copy()
@@ -168,6 +183,7 @@ def make_rf_features(series: pd.Series) -> pd.DataFrame:
     df["day_of_month"] = df.index.day
     df["month"] = df.index.month
     return df.dropna()
+
 
 def random_forest_forecast(series: pd.Series, days: int) -> Tuple[pd.DataFrame, dict]:
     if not SKLEARN_OK or RandomForestRegressor is None:
@@ -188,7 +204,9 @@ def random_forest_forecast(series: pd.Series, days: int) -> Tuple[pd.DataFrame, 
     X = df.drop(columns=["y"])
     y = df["y"].astype(float)
 
-    model = RandomForestRegressor(n_estimators=400, random_state=42, min_samples_leaf=2, n_jobs=-1)
+    model = RandomForestRegressor(
+        n_estimators=400, random_state=42, min_samples_leaf=2, n_jobs=-1
+    )
     model.fit(X, y)
     r2 = float(model.score(X, y))
 
@@ -227,6 +245,7 @@ def random_forest_forecast(series: pd.Series, days: int) -> Tuple[pd.DataFrame, 
     info = {"ok": True, "type": "random_forest", "r2_train": r2}
     return pred_df, info
 
+
 def gradient_boosting_forecast(series: pd.Series, days: int) -> Tuple[pd.DataFrame, dict]:
     if not SKLEARN_OK or GradientBoostingRegressor is None:
         return simple_forecast(series, days), {"ok": False, "reason": "scikit-learn not installed"}
@@ -246,7 +265,9 @@ def gradient_boosting_forecast(series: pd.Series, days: int) -> Tuple[pd.DataFra
     X = df.drop(columns=["y"])
     y = df["y"].astype(float)
 
-    model = GradientBoostingRegressor(random_state=42, n_estimators=400, learning_rate=0.05, max_depth=3)
+    model = GradientBoostingRegressor(
+        random_state=42, n_estimators=400, learning_rate=0.05, max_depth=3
+    )
     model.fit(X, y)
     r2 = float(model.score(X, y))
 
@@ -285,7 +306,10 @@ def gradient_boosting_forecast(series: pd.Series, days: int) -> Tuple[pd.DataFra
     info = {"ok": True, "type": "gradient_boosting", "r2_train": r2}
     return pred_df, info
 
-def forecast_series_for_mode(daily_total: pd.Series, forecast_days: int, mode_name: str) -> tuple[pd.Series, dict]:
+
+def forecast_series_for_mode(
+    daily_total: pd.Series, forecast_days: int, mode_name: str
+) -> tuple[pd.Series, dict]:
     if mode_name == "AI (Heuristic)":
         pred_raw = simple_forecast(daily_total, days=forecast_days)
         model_info = {"ok": True, "type": "heuristic"}
@@ -301,12 +325,14 @@ def forecast_series_for_mode(daily_total: pd.Series, forecast_days: int, mode_na
     pred_series = pd.Series(pred_raw["predicted"].values, index=future_index)
     return pred_series, model_info
 
+
 def make_pred_band(pred: pd.Series, recent_actual: pd.Series) -> pd.DataFrame:
     recent = recent_actual.dropna().tail(21)
     spread = float(recent.std()) if len(recent) >= 5 else 0.0
     lower = (pred - spread).clip(lower=0)
     upper = (pred + spread).clip(lower=0)
     return pd.DataFrame({"predicted": pred, "lower": lower, "upper": upper})
+
 
 def _safe_mape(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     y_true = np.asarray(y_true, dtype=float)
@@ -315,13 +341,19 @@ def _safe_mape(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     mape = np.nanmean(np.abs((y_true - y_pred) / denom)) * 100.0
     return float(mape) if np.isfinite(mape) else float("nan")
 
+
 def evaluate_models_time_holdout(
     daily_total: pd.Series,
     holdout_days: int = 14,
     modes: list[str] | None = None,
 ) -> Tuple[pd.DataFrame, str]:
     if modes is None:
-        modes = ["AI (Heuristic)", "ML (Linear Regression)", "AI (Random Forest)", "ML (Gradient Boosting)"]
+        modes = [
+            "AI (Heuristic)",
+            "ML (Linear Regression)",
+            "AI (Random Forest)",
+            "ML (Gradient Boosting)",
+        ]
 
     s = daily_total.copy().sort_index()
     s = s.asfreq("D").fillna(0)
