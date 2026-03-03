@@ -35,7 +35,7 @@ THEMES = {
 
     # Higher accessibility contrast, still dark + pink accents (improved)
 "high_contrast": {
-    "label": "High Contrast Dark (BP Pro)",
+    "label": "High Contrast Dark ",
     "mode": "dark",
     "vars": {
         # Backgrounds: avoid pure black to reduce eye strain
@@ -81,7 +81,7 @@ THEMES = {
 
 # Light theme for report-style viewing (improved)
 "light_clean": {
-    "label": "Light (Clean BP)",
+    "label": "Light ",
     "mode": "light",
     "vars": {
         # Backgrounds: slightly tinted so it doesn't feel sterile
