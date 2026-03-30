@@ -1,7 +1,6 @@
 import streamlit as st
 
 # Theme registry
-
 THEMES = {
     "blackpink_pro": {
         "label": "BLACKPINK",
