@@ -1,11 +1,10 @@
 import streamlit as st
 
-# ----------------------------
 # Theme registry
-# ----------------------------
+
 THEMES = {
     "blackpink_pro": {
-        "label": "BLACKPINK ",
+        "label": "BLACKPINK",
         "mode": "dark",
         "vars": {
             "--bp-bg": "#06060A",
@@ -31,7 +30,7 @@ THEMES = {
     },
 
     "high_contrast": {
-        "label": "High Contrast Dark ",
+        "label": "High Contrast Dark",
         "mode": "dark",
         "vars": {
             "--bp-bg": "#0B0B10",
@@ -65,7 +64,7 @@ THEMES = {
     },
 
     "light_clean": {
-        "label": "Light ",
+        "label": "Light",
         "mode": "light",
         "vars": {
             "--bp-bg": "#FFFFFF",
@@ -99,10 +98,7 @@ THEMES = {
     },
 }
 
-
-# ----------------------------
 # Helpers
-# ----------------------------
 def theme_options():
     keys = list(THEMES.keys())
     return [(k, THEMES[k]["label"]) for k in keys]
@@ -145,12 +141,6 @@ def apply_theme(
     text_scale: float = 1.0,
     reduced_motion: bool = False,
 ) -> None:
-    """
-    Applies a theme from THEMES by injecting variable-driven CSS + accessibility overrides.
-
-    text_scale: 0.9 .. 1.5 recommended
-    reduced_motion: disables most transitions/animations
-    """
     theme = THEMES.get(theme_key) or THEMES["blackpink_pro"]
     css_vars = _vars_to_css(theme["vars"])
 
