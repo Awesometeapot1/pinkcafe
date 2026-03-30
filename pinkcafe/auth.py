@@ -548,6 +548,8 @@ def login_gate() -> bool:
     if st.session_state.logged_in:
         return True
 
+    _inject_login_css()
+
     st.markdown(
         """
         <div class="bp-login-glow">
