@@ -5,7 +5,7 @@ import pandas as pd
 import streamlit as st
 
 from constants import USERS_FILE
-from theme import theme_options, apply_theme, render_accessibility_controls
+from theme import theme_options, render_accessibility_controls
 
 # Password hashing / verification
 def _pw_hash(password: str, salt: str) -> str:
@@ -554,12 +554,6 @@ def login_gate() -> bool:
 
     if "a11y_reduced_motion" not in st.session_state:
         st.session_state.a11y_reduced_motion = False
-
-    apply_theme(
-        st.session_state.theme_key,
-        text_scale=st.session_state.a11y_text_scale,
-        reduced_motion=st.session_state.a11y_reduced_motion,
-    )
 
     if st.session_state.logged_in:
         return True
