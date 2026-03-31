@@ -1,6 +1,8 @@
 import streamlit as st
 
+# ----------------------------
 # Theme registry
+# ----------------------------
 THEMES = {
     "blackpink_pro": {
         "label": "BLACKPINK",
@@ -85,7 +87,10 @@ THEMES = {
     },
 }
 
+
+# ----------------------------
 # Helpers
+# ----------------------------
 def theme_options():
     keys = list(THEMES.keys())
     return [(k, THEMES[k]["label"]) for k in keys]
@@ -140,12 +145,20 @@ def apply_theme(
     motion_css = ""
     if reduced_motion:
         motion_css = """
-        * {
-            transition: none !important;
-            animation: none !important;
-            scroll-behavior: auto !important;
-        }
-        """
+    * {
+        transition: none !important;
+        animation: none !important;
+        scroll-behavior: auto !important;
+    }
+
+    .stButton > button:hover,
+    button[kind="primary"]:hover,
+    button[kind="secondary"]:hover,
+    div[data-testid="stForm"] button:hover {
+        transform: none !important;
+        filter: none !important;
+    }
+    """
 
     st.markdown(
         f"""
