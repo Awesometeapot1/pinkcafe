@@ -15,9 +15,23 @@ from forecasting import (
     evaluate_models_time_holdout,
 )
 
-# ----------------------------
+if "pred_coffee_df" not in st.session_state:
+    st.session_state["pred_coffee_df"] = None
+
+if "pred_croissant_df" not in st.session_state:
+    st.session_state["pred_croissant_df"] = None
+
+if "pred_coffee_name" not in st.session_state:
+    st.session_state["pred_coffee_name"] = None
+
+if "pred_croissant_name" not in st.session_state:
+    st.session_state["pred_croissant_name"] = None
+
+if "pred_coffee_format_note" not in st.session_state:
+    st.session_state["pred_coffee_format_note"] = None
+
+
 # Helpers
-# ----------------------------
 def _section(title: str, subtitle: str | None = None) -> None:
     st.markdown(f"## {title}")
     if subtitle:
@@ -63,11 +77,11 @@ def _recommendation_text(best_mode: str, holdout_days: int, label_map: dict[str,
     if not best_mode:
         return (
             "Not enough data to compare models fairly yet. "
-            "Use **Heuristic (AI)** for now."
+            "**Heuristic (AI)** is the default for now."
         )
     return (
-        f"Based on the **last {holdout_days} days**, the most accurate model was:\n\n"
-        f"### ✅ Recommended: **{label_map.get(best_mode, best_mode)}**"
+        f"Best performing model over the last {holdout_days} days:\n\n"
+        f"### 👑 Recommended: **{label_map.get(best_mode, best_mode)}**"
     )
 
 
@@ -223,9 +237,7 @@ def _assumptions_expander() -> None:
         )
 
 
-# ----------------------------
 # Page
-# ----------------------------
 def page_predictions_dashboard() -> None:
     # Role safety check (defense in depth)
     role = st.session_state.get("role")
@@ -235,34 +247,46 @@ def page_predictions_dashboard() -> None:
 
     render_pink_header(
         "Predictions",
-        "Upload café CSVs → understand trends → compare models → export forecasts.",
+        "Upload café sales data to analyse trends, compare forecasting models, and plan ahead.",
     )
 
     mode_help = _model_explanations()
     modes = list(mode_help.keys())
     label_map = _model_label_map()
 
-    # =========================
     # STEP 1 — Upload
-    # =========================
-    _section("Step 1 — Upload your sales files", "Upload BOTH files to continue.")
+    _section("Step 1 — Upload your sales files", "Upload both files to get started.")
     c1, c2 = st.columns(2)
-    with c1:
-        coffee_file = st.file_uploader("Coffee Sales CSV", type=["csv"])
-    with c2:
-        croissant_file = st.file_uploader("Croissant Sales CSV", type=["csv"])
 
-    if not coffee_file or not croissant_file:
+    with c1:
+        coffee_file = st.file_uploader("Coffee Sales CSV", type=["csv"], key="pred_coffee_upload")
+
+    with c2:
+        croissant_file = st.file_uploader("Croissant Sales CSV", type=["csv"], key="pred_croissant_upload")
+
+    # Save uploaded files into session state
+    if coffee_file is not None:
+        st.session_state["pred_coffee_format_note"] = _detect_coffee_layout(coffee_file)
+        st.session_state["pred_coffee_df"] = load_coffee_weird_layout(coffee_file)
+        st.session_state["pred_coffee_name"] = coffee_file.name
+
+    if croissant_file is not None:
+        st.session_state["pred_croissant_df"] = load_simple_product_file(croissant_file, "Croissant")
+        st.session_state["pred_croissant_name"] = croissant_file.name
+
+    coffee_long = st.session_state.get("pred_coffee_df")
+    croissant_long = st.session_state.get("pred_croissant_df")
+    coffee_format_note = st.session_state.get("pred_coffee_format_note")
+
+    if coffee_long is None or croissant_long is None:
         st.info("Upload both CSV files to continue.")
         return
 
-    coffee_format_note = _detect_coffee_layout(coffee_file)
-
-    # =========================
-    # Load data
-    # =========================
-    coffee_long = load_coffee_weird_layout(coffee_file)
-    croissant_long = load_simple_product_file(croissant_file, "Croissant")
+    st.caption(
+        f"Loaded files: "
+        f"{st.session_state.get('pred_coffee_name', '—')} • "
+        f"{st.session_state.get('pred_croissant_name', '—')}"
+    )
 
     df_all = pd.concat([coffee_long, croissant_long], ignore_index=True)
     df_all["units_sold"] = pd.to_numeric(df_all["units_sold"], errors="coerce").fillna(0)
@@ -270,10 +294,8 @@ def page_predictions_dashboard() -> None:
     df_all["date"] = pd.to_datetime(df_all["date"]).dt.normalize()
     df_all["product"] = df_all["product"].astype(str).str.strip()
 
-    # =========================
-    # Filters (compact, no big pink buttons)
-    # =========================
-    _section("Filters", "Pick days and products to include (applies to Overview + Forecast).")
+    # Filters
+    _section("Filters", "Select the data you want to analyse (affects all charts and forecasts).")
 
     min_date = df_all["date"].min().date()
     max_date = df_all["date"].max().date()
@@ -354,12 +376,10 @@ def page_predictions_dashboard() -> None:
     daily_total = df_filtered.groupby("date")["units_sold"].sum().asfreq("D").fillna(0)
     daily_ma7 = moving_average(daily_total, 7)
 
-    # =========================
     # Data checks
-    # =========================
-    with st.expander("Data checks (quality & parsing)"):
+    with st.expander("Data checks"):
         st.write(coffee_format_note)
-        st.caption("Checks shown below are based on your CURRENT filtered view.")
+        st.caption("Based on your current selection.")
 
         checks = _data_quality_checks(df_filtered, daily_total)
         if checks.get("status"):
@@ -380,11 +400,9 @@ def page_predictions_dashboard() -> None:
 
     tab_overview, tab_forecast, tab_explain = st.tabs(["Overview", "Forecast", "Explain"])
 
-    # =========================
     # Overview
-    # =========================
     with tab_overview:
-        _section("Summary KPIs", "Quick snapshot for your current filters.")
+        _section("Overview", "Quick view of recent performance.")
 
         # Compute “recommended model” for KPI forecast (use 14-day holdout by default)
         s_kpi = daily_total.copy().sort_index().asfreq("D").fillna(0)
@@ -418,14 +436,14 @@ def page_predictions_dashboard() -> None:
 
         k1, k2, k3, k4 = st.columns(4)
         with k1:
-            st.metric("Total units (last 7 days)", f"{last7_total:,.0f}")
+            st.metric("Last 7 days", f"{last7_total:,.0f}")
         with k2:
-            st.metric("Avg units/day (last 14 days)", f"{avg14:,.1f}")
+            st.metric("Daily average (14 days)", f"{avg14:,.1f}")
         with k3:
             st.metric("Best-selling product", top_prod if top_prod else "—")
         with k4:
             st.metric(
-                "Forecast next 7 days (total)",
+                "Next 7 days (forecast)",
                 f"{forecast_next7_total:,.0f}",
                 help=f"Model used: {label_map.get(chosen_mode_kpi, chosen_mode_kpi)}",
             )
@@ -434,16 +452,16 @@ def page_predictions_dashboard() -> None:
         _assumptions_expander()
 
         st.write("")
-        _section("Step 2 — Understand your sales", "Patterns and weekly behaviour (filtered).")
+        _section("Sales trends", "Daily sales and trend.")
 
         colL, colR = st.columns([3, 2])
 
         with colL:
-            _section("Daily total units sold", "Bars = daily units, line = 7-day moving average.")
+            _section("Daily sales", "Bars show daily sales. Line shows the 7-day trend.")
             st.bar_chart(daily_total)
             st.line_chart(daily_ma7)
 
-            _section("Top products (filtered)", "Best-selling items in your current view.")
+            _section("Top products (filtered)", "Best-performing items in this view.")
             totals = df_filtered.groupby("product")["units_sold"].sum().sort_values(ascending=False)
             st.bar_chart(totals.head(10))
 
@@ -465,9 +483,7 @@ def page_predictions_dashboard() -> None:
             st.markdown(f"### Suggested weekly target: **{suggested_weekly:,} units**")
             st.caption("Use this as a starting point when ordering ingredients / staffing.")
 
-    # =========================
     # Forecast
-    # =========================
     with tab_forecast:
         _section("Forecast settings")
         _assumptions_expander()
@@ -491,7 +507,7 @@ def page_predictions_dashboard() -> None:
         s = daily_total.copy().sort_index().asfreq("D").fillna(0)
 
         st.write("")
-        _section("Compare all models on one graph", "Switch between Holdout (vs actual) and Future (model forecasts).")
+        _section("Model comparison", "Compare performance and forecasts.")
         compare_mode = st.radio(
             "Comparison view",
             ["Holdout (compare to actual)", "Future (compare forecasts)"],
@@ -515,7 +531,7 @@ def page_predictions_dashboard() -> None:
                     holdout_compare_df[label_map.get(m, m)] = pred_s.values.astype(float)
 
                 st.line_chart(holdout_compare_df)
-                st.caption("Closer lines to **Actual** = better performance on the holdout window.")
+                st.caption("Lines closer to **Actual** performed better.")
             else:
                 st.info("Not enough data yet for a fair holdout comparison (need more days).")
         else:
@@ -526,7 +542,7 @@ def page_predictions_dashboard() -> None:
             if not future_compare_df.empty:
                 future_compare_df.index = ps.index
                 st.line_chart(future_compare_df)
-                st.caption("Model disagreement indicates uncertainty (useful for planning buffers).")
+                st.caption("Wider differences between models suggest higher uncertainty.")
 
         # Action recommendations
         st.write("")
@@ -560,13 +576,13 @@ def page_predictions_dashboard() -> None:
 
         a1, a2, a3 = st.columns(3)
         with a1:
-            st.markdown(f"### Next 7 days (forecast)\n**{next7_total:,.0f} units**")
+            st.markdown(f"### Next 7 days\n**{next7_total:,.0f} units**")
             st.caption(f"Model used: {chosen_label}")
         with a2:
-            st.markdown(f"### Suggested plan (with buffer)\n**{buffered_week:,.0f} units**")
+            st.markdown(f"### Recommended(with buffer)\n**{buffered_week:,.0f} units**")
             st.caption(f"Buffer: +{int(buffer_pct*100)}% — {buffer_reason}")
         with a3:
-            st.markdown(f"### Recent weekly baseline\n**{recent_week_avg:,.0f} units**")
+            st.markdown(f"### Recent average\n**{recent_week_avg:,.0f} units**")
             st.caption("Based on average daily sales over the last 28 days.")
 
         # Downloads
@@ -623,9 +639,7 @@ def page_predictions_dashboard() -> None:
                 f"forecast_{chosen_label.replace(' ', '_').replace('(', '').replace(')', '').lower()}_{horizon_weeks}w.csv",
             )
 
-    # =========================
     # Explain
-    # =========================
     with tab_explain:
         _section("Explain the forecasting", "Plain-English summary of each model.")
         _assumptions_expander()
